@@ -1,0 +1,14 @@
+roboclaw_driver:
+  ros__parameters:
+    # UART0 - RoboClaw 1 (On Sol M1 / On Sag M2)
+    port_front: "/dev/ttyACM0"
+    baud_front: 38400
+    address_front: 0x80
+
+    # USB - RoboClaw 2 (Arka M2)
+    port_rear: "/dev/ttyACM1"
+    baud_rear: 38400
+    address_rear: 0x81
+
+    loop_rate_hz: 50.0
+    encoder_ticks_per_rev: 1440
