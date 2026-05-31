@@ -69,16 +69,17 @@ class NavigatorNode(Node):
         self.declare_parameter('v_max',           0.35)   # m/s
         self.declare_parameter('lookahead',       0.50)   # m  — Pure Pursuit ufku
         self.declare_parameter('pos_tol',         0.08)   # m  — varış toleransı
-        self.declare_parameter('robot_radius',    0.27)   # m  — robot yarıçapı (DWA çarpışma eşiği)
-        self.declare_parameter('d_safe',          0.40)   # m  — hız azaltma başlangıç mesafesi
+        self.declare_parameter('robot_radius',    0.27)   # m  — fiziksel yarıçap (hız regülasyonu)
+        self.declare_parameter('dwa_clearance',   0.13)   # m  — DWA min yüzey boşluğu (gövde marjı)
+        self.declare_parameter('d_safe',          0.45)   # m  — hız azaltma başlangıç mesafesi
         # DWA
-        self.declare_parameter('dwa_alpha',       0.70)   # heading ağırlığı
-        self.declare_parameter('dwa_beta',        0.20)   # clearance ağırlığı
+        self.declare_parameter('dwa_alpha',       0.60)   # heading ağırlığı
+        self.declare_parameter('dwa_beta',        0.30)   # clearance ağırlığı
         self.declare_parameter('dwa_gamma',       0.10)   # hız ağırlığı
         self.declare_parameter('dwa_n_dir',       36)     # yön örnekleme sayısı
         self.declare_parameter('dwa_n_speed',     8)      # hız örnekleme sayısı
-        self.declare_parameter('dwa_sim_time',    1.5)    # s  — simülasyon süresi
-        self.declare_parameter('dwa_sim_steps',   10)     # adım sayısı
+        self.declare_parameter('dwa_sim_time',    0.8)    # s  — simülasyon ufku
+        self.declare_parameter('dwa_sim_steps',   8)      # adım sayısı
         self.declare_parameter('dwa_max_clear',   2.0)    # m  — normalize referans
         # Tıkanma & zaman aşımı
         self.declare_parameter('stuck_threshold', 0.05)   # m
@@ -91,6 +92,7 @@ class NavigatorNode(Node):
         self._lookahead   = self.get_parameter('lookahead').value
         self._pos_tol     = self.get_parameter('pos_tol').value
         self._robot_r     = self.get_parameter('robot_radius').value
+        self._dwa_clr     = self.get_parameter('dwa_clearance').value
         self._d_safe      = self.get_parameter('d_safe').value
         self._alpha       = self.get_parameter('dwa_alpha').value
         self._beta        = self.get_parameter('dwa_beta').value
@@ -294,33 +296,26 @@ class NavigatorNode(Node):
         if dist_goal < self._lookahead * 2:
             v_limit *= max(0.25, dist_goal / (self._lookahead * 2))
 
-        # DWA: en iyi (vx, vy) seç
-        vx, vy = self._dwa(px, py, tx, ty, v_limit)
-
-        # DWA hiç geçerli aday bulamazsa (gerçek tıkanma) → log
-        if abs(vx) < 1e-6 and abs(vy) < 1e-6:
-            self.get_logger().warn(
-                f'DWA: engel {nearest:.2f}m — geçerli yön yok, bekliyor.',
-                throttle_duration_sec=1.0
-            )
-
+        # DWA: en iyi (vx, vy) seç (kaçış modu dahil — hiç (0,0) dönmez)
+        vx, vy = self._dwa(px, py, tx, ty, v_limit, nearest)
         self._publish_vel(vx, vy, 0.0)
 
     # ── DWA ───────────────────────────────────────────────────────────────────
 
     def _dwa(self, px: float, py: float,
              tx: float, ty: float,
-             v_limit: float) -> Tuple[float, float]:
+             v_limit: float,
+             nearest: float = float('inf')) -> Tuple[float, float]:
         """
-        Vektörize DWA.
+        Vektörize DWA. Kaçış modu dahil — hiçbir zaman (0,0) dönmez.
 
-        Adaylar başta hesaplanmış (vx, vy, A, S) tablosundan alınır.
-        Hız üst sınırı v_limit ile dinamik olarak kısıtlanır.
-        Her aday için:
-          1. sim_steps adım simüle et (sabit hız varsayımı)
-          2. her adımda engel açıklığını kontrol et
-          3. heading / clearance / speed puanla
-        En yüksek toplam puanlı adayı döndür.
+        Normal mod : heading × clearance × speed puanla; dwa_clearance'ı
+                     geçemeyen adayları ele.
+        Kaçış modu : tüm adaylar dwa_clearance altında kaldıysa, çarpışma
+                     denetimini atla; sadece clearance puanına göre seç ve
+                     minimum hızda döndür. Robot en açık yöne çekilir.
+
+        Adaptif ağırlıklar: nearest < d_safe ise clearance ağırlığı artar.
         """
         vx   = self._cand_vx
         vy   = self._cand_vy
@@ -330,7 +325,6 @@ class NavigatorNode(Node):
         # Hız limiti filtresi
         mask = S <= (v_limit + 1e-6)
         if not np.any(mask):
-            # Tüm hızlar limitin üstündeyse en yavaşı seç
             mask = S == S.min()
 
         vx_m = vx[mask]
@@ -339,54 +333,79 @@ class NavigatorNode(Node):
         S_m  = S[mask]
         N    = len(vx_m)
 
-        # Yörünge simülasyonu
+        # Yörünge simülasyonu (kısa ufuk — aşırı konservatiflikten kaçın)
         sim_dt = self._sim_time / self._sim_steps
-        steps  = np.arange(1, self._sim_steps + 1, dtype=float)  # (n_steps,)
-
-        traj_x = px + vx_m[:, None] * (steps[None, :] * sim_dt)  # (N, n_steps)
+        steps  = np.arange(1, self._sim_steps + 1, dtype=float)
+        traj_x = px + vx_m[:, None] * (steps[None, :] * sim_dt)
         traj_y = py + vy_m[:, None] * (steps[None, :] * sim_dt)
 
-        # Engel açıklığı
+        # Engel açıklığı hesabı
         if self._obstacles:
-            obs_x = np.fromiter((o['x'] for o in self._obstacles), dtype=float)
-            obs_y = np.fromiter((o['y'] for o in self._obstacles), dtype=float)
+            obs_x = np.fromiter((o['x']          for o in self._obstacles), dtype=float)
+            obs_y = np.fromiter((o['y']          for o in self._obstacles), dtype=float)
             obs_r = np.fromiter((o.get('r', 0.15) for o in self._obstacles), dtype=float)
-
-            # (N, n_steps, n_obs) mesafe matrisi
-            dx = traj_x[:, :, None] - obs_x[None, None, :]
-            dy = traj_y[:, :, None] - obs_y[None, None, :]
-            dist_c  = np.sqrt(dx**2 + dy**2)
-            dist_s  = np.maximum(dist_c - obs_r[None, None, :], 0.0)
-            min_clr = dist_s.min(axis=(1, 2))   # (N,)
+            dx     = traj_x[:, :, None] - obs_x[None, None, :]
+            dy     = traj_y[:, :, None] - obs_y[None, None, :]
+            dist_c = np.sqrt(dx**2 + dy**2)
+            dist_s = np.maximum(dist_c - obs_r[None, None, :], 0.0)
+            min_clr = dist_s.min(axis=(1, 2))
         else:
             min_clr = np.full(N, self._max_clear)
 
-        # Çarpışma filtresi: yüzey mesafesi < robot_radius olan adaylar geçersiz
-        valid = min_clr >= self._robot_r
+        valid = min_clr >= self._dwa_clr
 
-        # Heading puanı: carrot yönüne hizalanma
-        target_angle = math.atan2(ty - py, tx - px)
-        ang_diff = np.abs(np.angle(np.exp(1j * (A_m - target_angle))))
+        # Adaptif ağırlıklar: engele yaklaşınca clearance önceliği artar
+        if nearest < self._d_safe:
+            prox = 1.0 - (nearest / self._d_safe)   # 0(uzak) → 1(yakın)
+            alpha = self._alpha * (1.0 - 0.4 * prox)
+            beta  = self._beta  + 0.4 * prox * self._alpha
+        else:
+            alpha, beta = self._alpha, self._beta
+
+        # Puanlama
+        target_angle    = math.atan2(ty - py, tx - px)
+        ang_diff        = np.abs(np.angle(np.exp(1j * (A_m - target_angle))))
         heading_score   = 1.0 - ang_diff / math.pi
-
-        # Clearance puanı: normalize
         clearance_score = np.minimum(min_clr / self._max_clear, 1.0)
+        speed_score     = S_m / self._v_max
 
-        # Hız puanı
-        speed_score = S_m / self._v_max
-
-        score = (self._alpha * heading_score +
-                 self._beta  * clearance_score +
-                 self._gamma * speed_score)
+        score = alpha * heading_score + beta * clearance_score + self._gamma * speed_score
         score[~valid] = -np.inf
 
-        if not np.any(valid):
-            # Hiç geçerli aday yok — duraksama
-            self.get_logger().warn('DWA: geçerli aday yok, duraksıyor.', throttle_duration_sec=1.0)
-            return 0.0, 0.0
+        if np.any(valid):
+            best = int(np.argmax(score))
+            return float(vx_m[best]), float(vy_m[best])
 
-        best = int(np.argmax(score))
-        return float(vx_m[best]), float(vy_m[best])
+        # ── Kaçış modu: hiç geçerli aday yoksa en açık yöne git ─────────────
+        # Hız sınırını kaldır (tüm 36 yöne bak, en düşük hız kademesinde)
+        A_all  = self._cand_A
+        S_all  = self._cand_S
+        vx_all = self._cand_vx
+        vy_all = self._cand_vy
+
+        v_escape = self._v_max * 0.25
+        esc_mask = np.abs(S_all - S_all.min()) < 1e-6  # en düşük hız kademesi
+        A_e  = A_all[esc_mask]
+        vx_e = v_escape * np.cos(A_e)
+        vy_e = v_escape * np.sin(A_e)
+
+        # Bir adım sonrasındaki clearance hesabı
+        ex = px + vx_e * sim_dt
+        ey = py + vy_e * sim_dt
+        if self._obstacles:
+            dxe = ex[:, None] - obs_x[None, :]
+            dye = ey[:, None] - obs_y[None, :]
+            clr_e = np.maximum(np.sqrt(dxe**2 + dye**2) - obs_r[None, :], 0.0).min(axis=1)
+        else:
+            clr_e = np.full(len(A_e), self._max_clear)
+
+        best_e = int(np.argmax(clr_e))
+        self.get_logger().warn(
+            f'DWA kaçış: yön={math.degrees(A_e[best_e]):.0f}° '
+            f'clr={clr_e[best_e]:.2f}m  engel={nearest:.2f}m',
+            throttle_duration_sec=0.5,
+        )
+        return float(vx_e[best_e]), float(vy_e[best_e])
 
     # ── Pure Pursuit carrot ───────────────────────────────────────────────────
 

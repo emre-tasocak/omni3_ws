@@ -64,16 +64,17 @@ navigator_node:
     v_max:           0.35        # m/s — maksimum hız
     lookahead:       0.50        # m  — Pure Pursuit carrot ufku
     pos_tol:         0.08        # m  — varış toleransı
-    robot_radius:    0.27        # m  — DWA çarpışma eşiği (yüzey mesafesi < bu → aday geçersiz)
-    d_safe:          0.40        # m  — bu mesafeye girince hız azaltılır
+    robot_radius:    0.27        # m  — fiziksel yarıçap (hız regülasyonu baz çizgisi)
+    dwa_clearance:   0.13        # m  — DWA min yüzey boşluğu; bu altında aday elenir
+    d_safe:          0.45        # m  — bu mesafeye girince hız azaltılır
     # DWA parametreleri
-    dwa_alpha:       0.70        # heading puanı ağırlığı
-    dwa_beta:        0.20        # clearance puanı ağırlığı
+    dwa_alpha:       0.60        # heading puanı ağırlığı
+    dwa_beta:        0.30        # clearance puanı ağırlığı (artırıldı)
     dwa_gamma:       0.10        # hız puanı ağırlığı
     dwa_n_dir:       36          # yön örnekleme (her 10°)
     dwa_n_speed:     8           # hız örnekleme kademesi
-    dwa_sim_time:    1.5         # s  — simülasyon ufku
-    dwa_sim_steps:   10          # simülasyon adım sayısı
+    dwa_sim_time:    0.8         # s  — simülasyon ufku (azaltıldı: aşırı konservatiflik önlenir)
+    dwa_sim_steps:   8           # simülasyon adım sayısı
     dwa_max_clear:   2.0         # m  — clearance normalize referansı
     # Tıkanma & zaman aşımı
     stuck_threshold: 0.05        # m  — bu kadar hareket yoksa stuck
