@@ -77,7 +77,7 @@ class TrajectorySmoother(Node):
         self._viz_pub  = self.create_publisher(Path,   '/trajectory_viz',       10)
 
         # Sub
-        self.create_subscription(Path,   '/global_path', self._path_cb, 10)
+        self.create_subscription(Path,   '/global_path', self._path_cb, _LATCHED_QOS)
         self.create_subscription(String, '/obstacles',   self._obs_cb,  10)
 
         self.get_logger().info(
@@ -96,6 +96,8 @@ class TrajectorySmoother(Node):
             self.get_logger().warn(f'Engel JSON hatası: {e}', throttle_duration_sec=2.0)
 
     def _path_cb(self, msg: Path) -> None:
+        self.get_logger().info(f'Yol alındı: {len(msg.poses)} nokta')
+
         if len(msg.poses) < 2:
             self.get_logger().warn('Gelen yol çok kısa (< 2 waypoint)')
             return
@@ -105,11 +107,14 @@ class TrajectorySmoother(Node):
             for p in msg.poses
         ]
 
-        # Smoother'da collision check kapalı: RRT* zaten engel kaçındı,
-        # gerçek zamanlı kaçınma navigator APF'de yapılıyor.
-        traj = self._smoother.smooth(waypoints, None)
+        try:
+            traj = self._smoother.smooth(waypoints, None)
+        except Exception as e:
+            self.get_logger().error(f'Quintic smoother istisna: {e}')
+            return
+
         if traj is None:
-            self.get_logger().error('Quintic smoother başarısız oldu')
+            self.get_logger().error('Quintic smoother None döndürdü')
             return
 
         total = traj.total_time

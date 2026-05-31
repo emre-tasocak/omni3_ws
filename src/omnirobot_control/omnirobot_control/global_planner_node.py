@@ -51,7 +51,7 @@ class GlobalPlannerNode(Node):
         self._lock      = threading.Lock()
         self._cancel    = threading.Event()
 
-        self._path_pub = self.create_publisher(Path, '/global_path', 10)
+        self._path_pub = self.create_publisher(Path, '/global_path', _LATCHED_QOS)
         self._viz_pub  = self.create_publisher(Path, '/plan_viz',    10)
 
         self.create_subscription(PoseStamped, '/goal_pose', self._goal_cb,   _LATCHED_QOS)
