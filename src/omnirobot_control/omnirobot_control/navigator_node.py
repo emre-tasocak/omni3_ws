@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-navigator_node.py  —  Pure Pursuit yerel planlayıcı
+navigator_node.py  —  DWA (Dynamic Window Approach) yerel planlayıcı
 
 Pipeline:
-  /global_path + /obstacles + /odom  →  Pure Pursuit + APF  →  /cmd_vel
+  /global_path + /obstacles + /odom  →  DWA  →  /cmd_vel
 
 Durum makinesi:
   IDLE → PLANNING → FOLLOWING → GOAL_REACHED → IDLE
@@ -11,21 +11,20 @@ Durum makinesi:
                  └── REPLANNING ─┘
 
 Yol takibi:
-  Coulter (1992) Pure Pursuit — path üzerinde lookahead mesafesindeki
-  "havuç" noktasına doğru ilerle.  Zaman bazlı trajectory yok, dolayısıyla
-  referans sapması ve zig-zag yok.
+  Pure Pursuit carrot noktası → DWA hedef yönü
+  DWA, (vx, vy) uzayını örnekleyerek:
+    - heading  : carrot noktasına yönelim puanı
+    - clearance: simüle edilen yol boyunca engel açıklığı
+    - speed    : hız puanı
+  üçlü kritere göre en iyi hız komutunu seçer.
+
+DWA referans:
+  Fox, Burgard & Thrun (1997) "The Dynamic Window Approach to Collision Avoidance"
+  Holonomik robot için (vx, vy) uzayında uyarlanmıştır.
 
 Hız regülasyonu:
-  Macenski et al. (2020) Regulated Pure Pursuit — engele yaklaştıkça hız
-  doğrusal olarak azalır; acil mesafeye girince tam dur + REPLANNING.
-
-Engel kaçınma:
-  Statik : hafif APF (k_rep küçük — sadece hafifçe saptırır)
-  Dinamik: tahminli APF (tau saniye sonraki konumdan kaç — güçlü)
-  Acil   : emergency_dist içinde → normalize kaçış hızı + REPLANNING
-
-Tıkanma:
-  stuck_window saniye içinde stuck_threshold'dan az ilerleme → REPLANNING
+  Engel yakınlığına göre v_max azaltılır.
+  Hedef yakınında hız yavaşlatılır.
 """
 
 import json
@@ -67,40 +66,58 @@ class NavigatorNode(Node):
 
         # ── Parametreler ──────────────────────────────────────────────────────
         self.declare_parameter('dt',              0.05)
-        self.declare_parameter('v_max',           0.40)   # m/s — maksimum hız
-        self.declare_parameter('lookahead',       0.45)   # m  — Pure Pursuit ufku
+        self.declare_parameter('v_max',           0.35)   # m/s
+        self.declare_parameter('lookahead',       0.50)   # m  — Pure Pursuit ufku
         self.declare_parameter('pos_tol',         0.08)   # m  — varış toleransı
-        self.declare_parameter('k_rep',           0.03)   # statik APF katsayısı (hafif)
-        self.declare_parameter('k_rep_dynamic',   0.40)   # dinamik APF katsayısı (güçlü)
-        self.declare_parameter('predict_tau',     0.8)    # s  — dinamik engel tahmin ufku
-        self.declare_parameter('apf_influence',   0.80)   # m  — APF etki yarıçapı
-        self.declare_parameter('emergency_dist',  0.30)   # m  — acil dur eşiği
-        self.declare_parameter('stuck_threshold', 0.05)   # m  — tıkanma eşiği
-        self.declare_parameter('stuck_window',    2.5)    # s  — tıkanma penceresi
-        self.declare_parameter('replan_timeout',  5.0)    # s  — REPLANNING → IDLE
-        self.declare_parameter('goal_wait',       2.0)    # s  — GOAL_REACHED bekleme
+        self.declare_parameter('robot_radius',    0.27)   # m  — robot yarıçapı
+        self.declare_parameter('d_safe',          0.40)   # m  — güvenli mesafe eşiği
+        self.declare_parameter('emergency_dist',  0.25)   # m  — acil dur eşiği
+        # DWA
+        self.declare_parameter('dwa_alpha',       0.70)   # heading ağırlığı
+        self.declare_parameter('dwa_beta',        0.20)   # clearance ağırlığı
+        self.declare_parameter('dwa_gamma',       0.10)   # hız ağırlığı
+        self.declare_parameter('dwa_n_dir',       36)     # yön örnekleme sayısı
+        self.declare_parameter('dwa_n_speed',     8)      # hız örnekleme sayısı
+        self.declare_parameter('dwa_sim_time',    1.5)    # s  — simülasyon süresi
+        self.declare_parameter('dwa_sim_steps',   10)     # adım sayısı
+        self.declare_parameter('dwa_max_clear',   2.0)    # m  — normalize referans
+        # Tıkanma & zaman aşımı
+        self.declare_parameter('stuck_threshold', 0.05)   # m
+        self.declare_parameter('stuck_window',    2.5)    # s
+        self.declare_parameter('replan_timeout',  5.0)    # s
+        self.declare_parameter('goal_wait',       2.0)    # s
 
-        self._dt             = self.get_parameter('dt').value
-        self._v_max          = self.get_parameter('v_max').value
-        self._lookahead      = self.get_parameter('lookahead').value
-        self._pos_tol        = self.get_parameter('pos_tol').value
-        self._k_rep          = self.get_parameter('k_rep').value
-        self._k_rep_dyn      = self.get_parameter('k_rep_dynamic').value
-        self._predict_tau    = self.get_parameter('predict_tau').value
-        self._apf_inf        = self.get_parameter('apf_influence').value
-        self._emg_dist       = self.get_parameter('emergency_dist').value
-        self._stuck_thr      = self.get_parameter('stuck_threshold').value
-        self._stuck_win      = self.get_parameter('stuck_window').value
-        self._replan_timeout = self.get_parameter('replan_timeout').value
-        self._goal_wait      = self.get_parameter('goal_wait').value
+        self._dt          = self.get_parameter('dt').value
+        self._v_max       = self.get_parameter('v_max').value
+        self._lookahead   = self.get_parameter('lookahead').value
+        self._pos_tol     = self.get_parameter('pos_tol').value
+        self._robot_r     = self.get_parameter('robot_radius').value
+        self._d_safe      = self.get_parameter('d_safe').value
+        self._emg_dist    = self.get_parameter('emergency_dist').value
+        self._alpha       = self.get_parameter('dwa_alpha').value
+        self._beta        = self.get_parameter('dwa_beta').value
+        self._gamma       = self.get_parameter('dwa_gamma').value
+        self._n_dir       = self.get_parameter('dwa_n_dir').value
+        self._n_speed     = self.get_parameter('dwa_n_speed').value
+        self._sim_time    = self.get_parameter('dwa_sim_time').value
+        self._sim_steps   = self.get_parameter('dwa_sim_steps').value
+        self._max_clear   = self.get_parameter('dwa_max_clear').value
+        self._stuck_thr   = self.get_parameter('stuck_threshold').value
+        self._stuck_win   = self.get_parameter('stuck_window').value
+        self._replan_to   = self.get_parameter('replan_timeout').value
+        self._goal_wait   = self.get_parameter('goal_wait').value
+
+        # DWA için aday hız tablosu — başlangıçta hesapla
+        self._cand_vx, self._cand_vy, self._cand_A, self._cand_S = \
+            self._build_candidates()
 
         # ── Durum ─────────────────────────────────────────────────────────────
         self._state             = State.IDLE
-        self._pose              = [0.0, 0.0, 0.0]   # [x, y, yaw]
+        self._pose              = [0.0, 0.0, 0.0]
         self._goal: Optional[Tuple] = None
         self._path: List[Point] = []
-        self._path_idx          = 0     # monoton ilerleyen waypoint indeksi
-        self._obstacles         = []
+        self._path_idx          = 0
+        self._obstacles: List[dict] = []
         self._goal_time         = None
         self._replan_time       = None
         self._stuck_check_pose  = None
@@ -117,7 +134,23 @@ class NavigatorNode(Node):
         self.create_subscription(Empty,       '/goal_cancel', self._cancel_cb, 10)
 
         self.create_timer(self._dt, self._control_loop)
-        self.get_logger().info('NavigatorNode başladı (Pure Pursuit).')
+        self.get_logger().info(
+            f'NavigatorNode başladı (DWA). '
+            f'Adaylar: {self._n_dir}yön × {self._n_speed}hız = '
+            f'{len(self._cand_vx)} aday.'
+        )
+
+    # ── Aday tablosu ──────────────────────────────────────────────────────────
+
+    def _build_candidates(self):
+        """Başlangıçta tüm (vx, vy) adaylarını bir kere hesapla."""
+        angles = np.linspace(-math.pi, math.pi, self._n_dir, endpoint=False)
+        speeds = np.linspace(self._v_max / self._n_speed,
+                             self._v_max, self._n_speed)
+        A, S = np.meshgrid(angles, speeds)
+        A = A.ravel()
+        S = S.ravel()
+        return S * np.cos(A), S * np.sin(A), A, S
 
     # ── Callback'ler ──────────────────────────────────────────────────────────
 
@@ -167,6 +200,7 @@ class NavigatorNode(Node):
             self._goal_time = time.time()
         elif new == State.REPLANNING:
             self._replan_time = time.time()
+            self._path = []
             self._replan_pub.publish(Empty())
         elif new == State.FOLLOWING:
             self._stuck_check_pose = (self._pose[0], self._pose[1])
@@ -182,18 +216,17 @@ class NavigatorNode(Node):
 
         elif s == State.PLANNING:
             self._stop()
-            # Path zaten geldi mi? (race condition: path, PLANNING'den önce gelebilir)
             if self._path:
                 self._set_state(State.FOLLOWING)
 
         elif s == State.REPLANNING:
             self._stop()
-            if self._path:   # yeni path geldi
+            if self._path:
                 self._set_state(State.FOLLOWING)
             elif (self._replan_time is not None and
-                  time.time() - self._replan_time > self._replan_timeout):
+                  time.time() - self._replan_time > self._replan_to):
                 self.get_logger().warn(
-                    f'REPLANNING {self._replan_timeout:.0f}s aşıldı → IDLE'
+                    f'REPLANNING {self._replan_to:.0f}s aşıldı → IDLE'
                 )
                 self._set_state(State.IDLE)
 
@@ -205,7 +238,7 @@ class NavigatorNode(Node):
             if time.time() - self._goal_time >= self._goal_wait:
                 self._set_state(State.IDLE)
 
-    # ── Pure Pursuit takip ────────────────────────────────────────────────────
+    # ── Takip döngüsü ─────────────────────────────────────────────────────────
 
     def _do_following(self):
         if not self._path or self._goal is None:
@@ -238,76 +271,138 @@ class NavigatorNode(Node):
             self._stuck_check_pose = (px, py)
             self._stuck_check_time = now
 
-        # En yakın engel mesafesi
-        nearest_dist = self._nearest_obs_dist(px, py)
+        # En yakın engel mesafesi (yüzey)
+        nearest = self._nearest_dist(px, py)
 
-        # Acil dur
-        if nearest_dist < self._emg_dist:
-            emg = self._apf_emergency(px, py)
+        # Acil dur: robot_radius içinde engel → REPLANNING
+        if nearest < self._emg_dist:
             self.get_logger().warn(
-                f'Acil! Engel {nearest_dist:.2f}m — kaçış ({emg[0]:.2f},{emg[1]:.2f})'
+                f'Acil! Engel mesafesi {nearest:.2f}m < {self._emg_dist}m → REPLANNING'
             )
-            self._publish_vel(emg[0], emg[1], 0.0)
+            self._stop()
             self._set_state(State.REPLANNING)
             return
 
-        # ── Pure Pursuit: havuç noktası ───────────────────────────────────────
+        # Pure Pursuit carrot noktası → DWA hedef yönü
         carrot = self._find_carrot(px, py)
-        dx = carrot[0] - px
-        dy = carrot[1] - py
-        dist_carrot = math.hypot(dx, dy)
-        if dist_carrot < 1e-3:
-            self._stop()
-            return
 
-        # Regulated speed: engele yaklaştıkça yavaşla
-        if nearest_dist < self._apf_inf:
-            obs_ratio = (nearest_dist - self._emg_dist) / (self._apf_inf - self._emg_dist)
-            speed = self._v_max * max(0.20, min(1.0, obs_ratio))
-        else:
-            speed = self._v_max
-
-        # Son waypoint'e yaklaşırken yavaşla (hedef yakını)
+        # Hedef yakınında (son lookahead içinde) carrot yerine direkt hedef kullan
         dist_goal = math.hypot(px - gx, py - gy)
+        if dist_goal < self._lookahead * 1.5:
+            tx, ty = gx, gy
+        else:
+            tx, ty = carrot
+
+        # Hız üst sınırı: engele yaklaştıkça düşür
+        if nearest < self._d_safe:
+            ratio = max(0.15, (nearest - self._emg_dist) /
+                        max(self._d_safe - self._emg_dist, 0.01))
+            v_limit = self._v_max * ratio
+        else:
+            v_limit = self._v_max
+
+        # Hedefe yaklaşırken yavaşla
         if dist_goal < self._lookahead * 2:
-            speed *= max(0.30, dist_goal / (self._lookahead * 2))
+            v_limit *= max(0.25, dist_goal / (self._lookahead * 2))
 
-        # Temel hız vektörü
-        vx = speed * dx / dist_carrot
-        vy = speed * dy / dist_carrot
-
-        # APF süperpozisyonu (hafif statik + güçlü dinamik)
-        rep_s = self._apf_static(px, py)
-        rep_d = self._apf_dynamic(px, py)
-        vx += rep_s[0] + rep_d[0]
-        vy += rep_s[1] + rep_d[1]
-
-        # Hız sınırlama
-        v = math.hypot(vx, vy)
-        if v > self._v_max:
-            vx *= self._v_max / v
-            vy *= self._v_max / v
-
+        # DWA: en iyi (vx, vy) seç
+        vx, vy = self._dwa(px, py, tx, ty, v_limit)
         self._publish_vel(vx, vy, 0.0)
 
-    # ── Pure Pursuit: havuç noktası ───────────────────────────────────────────
+    # ── DWA ───────────────────────────────────────────────────────────────────
+
+    def _dwa(self, px: float, py: float,
+             tx: float, ty: float,
+             v_limit: float) -> Tuple[float, float]:
+        """
+        Vektörize DWA.
+
+        Adaylar başta hesaplanmış (vx, vy, A, S) tablosundan alınır.
+        Hız üst sınırı v_limit ile dinamik olarak kısıtlanır.
+        Her aday için:
+          1. sim_steps adım simüle et (sabit hız varsayımı)
+          2. her adımda engel açıklığını kontrol et
+          3. heading / clearance / speed puanla
+        En yüksek toplam puanlı adayı döndür.
+        """
+        vx   = self._cand_vx
+        vy   = self._cand_vy
+        A    = self._cand_A
+        S    = self._cand_S
+
+        # Hız limiti filtresi
+        mask = S <= (v_limit + 1e-6)
+        if not np.any(mask):
+            # Tüm hızlar limitin üstündeyse en yavaşı seç
+            mask = S == S.min()
+
+        vx_m = vx[mask]
+        vy_m = vy[mask]
+        A_m  = A[mask]
+        S_m  = S[mask]
+        N    = len(vx_m)
+
+        # Yörünge simülasyonu
+        sim_dt = self._sim_time / self._sim_steps
+        steps  = np.arange(1, self._sim_steps + 1, dtype=float)  # (n_steps,)
+
+        traj_x = px + vx_m[:, None] * (steps[None, :] * sim_dt)  # (N, n_steps)
+        traj_y = py + vy_m[:, None] * (steps[None, :] * sim_dt)
+
+        # Engel açıklığı
+        if self._obstacles:
+            obs_x = np.fromiter((o['x'] for o in self._obstacles), dtype=float)
+            obs_y = np.fromiter((o['y'] for o in self._obstacles), dtype=float)
+            obs_r = np.fromiter((o.get('r', 0.15) for o in self._obstacles), dtype=float)
+
+            # (N, n_steps, n_obs) mesafe matrisi
+            dx = traj_x[:, :, None] - obs_x[None, None, :]
+            dy = traj_y[:, :, None] - obs_y[None, None, :]
+            dist_c  = np.sqrt(dx**2 + dy**2)
+            dist_s  = np.maximum(dist_c - obs_r[None, None, :], 0.0)
+            min_clr = dist_s.min(axis=(1, 2))   # (N,)
+        else:
+            min_clr = np.full(N, self._max_clear)
+
+        # Çarpışma filtresi: yüzey mesafesi < robot_radius olan adaylar geçersiz
+        valid = min_clr >= self._robot_r
+
+        # Heading puanı: carrot yönüne hizalanma
+        target_angle = math.atan2(ty - py, tx - px)
+        ang_diff = np.abs(np.angle(np.exp(1j * (A_m - target_angle))))
+        heading_score   = 1.0 - ang_diff / math.pi
+
+        # Clearance puanı: normalize
+        clearance_score = np.minimum(min_clr / self._max_clear, 1.0)
+
+        # Hız puanı
+        speed_score = S_m / self._v_max
+
+        score = (self._alpha * heading_score +
+                 self._beta  * clearance_score +
+                 self._gamma * speed_score)
+        score[~valid] = -np.inf
+
+        if not np.any(valid):
+            # Hiç geçerli aday yok — duraksama
+            self.get_logger().warn('DWA: geçerli aday yok, duraksıyor.', throttle_duration_sec=1.0)
+            return 0.0, 0.0
+
+        best = int(np.argmax(score))
+        return float(vx_m[best]), float(vy_m[best])
+
+    # ── Pure Pursuit carrot ───────────────────────────────────────────────────
 
     def _find_carrot(self, px: float, py: float) -> Point:
-        """
-        Path üzerinde lookahead mesafesindeki noktayı bul.
-        _path_idx monoton ilerler — geri dönmez.
-        """
         path = self._path
         n    = len(path)
         L    = self._lookahead
 
-        # Geçilen waypoint'leri atla
         while (self._path_idx < n - 1 and
                math.hypot(path[self._path_idx][0] - px,
                           path[self._path_idx][1] - py) < L * 0.5):
             self._path_idx += 1
 
-        # Lookahead mesafesinde segment kesişimi
         for i in range(self._path_idx, n - 1):
             pt = self._circle_segment_intersect(
                 px, py, L,
@@ -317,14 +412,13 @@ class NavigatorNode(Node):
             if pt is not None:
                 return pt
 
-        return path[-1]   # yol bitti → son noktaya git
+        return path[-1]
 
     @staticmethod
     def _circle_segment_intersect(
         cx: float, cy: float, r: float,
         ax: float, ay: float, bx: float, by: float,
     ) -> Optional[Point]:
-        """[A,B] segmenti ile r yarıçaplı çemberin ileri kesişimi."""
         dx, dy = bx - ax, by - ay
         fx, fy = ax - cx, ay - cy
         a = dx*dx + dy*dy
@@ -343,66 +437,13 @@ class NavigatorNode(Node):
                 return (ax + t*dx, ay + t*dy)
         return None
 
-    # ── APF ───────────────────────────────────────────────────────────────────
-
-    def _apf_static(self, px: float, py: float) -> np.ndarray:
-        """Statik engeller için hafif itme — sadece saptırır, yönü bozmaz."""
-        rep = np.zeros(2)
-        for obs in self._obstacles:
-            if obs.get('dynamic', False):
-                continue
-            ox, oy   = obs['x'], obs['y']
-            d_center = math.hypot(px - ox, py - oy)
-            if d_center < 1e-3:
-                continue
-            d_surf = max(d_center - obs['r'], 0.01)
-            if d_surf >= self._apf_inf:
-                continue
-            factor = self._k_rep * (1.0/d_surf - 1.0/self._apf_inf) / d_surf**2
-            rep   += factor * np.array([px - ox, py - oy]) / d_center
-        return rep
-
-    def _apf_dynamic(self, px: float, py: float) -> np.ndarray:
-        """Dinamik engeller için güçlü tahminli itme — tau sonraki konumdan kaç."""
-        rep = np.zeros(2)
-        for obs in self._obstacles:
-            if not obs.get('dynamic', False):
-                continue
-            ox = obs['x'] + obs.get('vx', 0.0) * self._predict_tau
-            oy = obs['y'] + obs.get('vy', 0.0) * self._predict_tau
-            d_center = math.hypot(px - ox, py - oy)
-            if d_center < 1e-3:
-                continue
-            d_surf = max(d_center - obs['r'], 0.01)
-            if d_surf >= self._apf_inf:
-                continue
-            factor = self._k_rep_dyn * (1.0/d_surf - 1.0/self._apf_inf) / d_surf**2
-            rep   += factor * np.array([px - ox, py - oy]) / d_center
-        return rep
-
-    def _apf_emergency(self, px: float, py: float) -> np.ndarray:
-        """Acil: normalize v_max hızında tüm yakın engellerden kaç."""
-        push = np.zeros(2)
-        for obs in self._obstacles:
-            ox, oy   = obs['x'], obs['y']
-            d_center = math.hypot(px - ox, py - oy)
-            if d_center < 1e-3:
-                continue
-            d_surf = max(d_center - obs['r'], 0.01)
-            if d_surf < self._emg_dist:
-                push += np.array([px - ox, py - oy]) / (d_center * d_surf)
-        norm = np.linalg.norm(push)
-        if norm < 1e-3:
-            return np.zeros(2)
-        return push / norm * self._v_max
-
     # ── Yardımcılar ───────────────────────────────────────────────────────────
 
-    def _nearest_obs_dist(self, px: float, py: float) -> float:
+    def _nearest_dist(self, px: float, py: float) -> float:
         if not self._obstacles:
             return float('inf')
         return min(
-            max(math.hypot(px - o['x'], py - o['y']) - o['r'], 0.0)
+            max(math.hypot(px - o['x'], py - o['y']) - o.get('r', 0.15), 0.0)
             for o in self._obstacles
         )
 
