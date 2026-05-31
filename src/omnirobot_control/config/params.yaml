@@ -36,6 +36,7 @@ perception_node:
     v_dynamic:      0.04        # m/s — dinamik sınıf eşiği
     max_miss:       5           # frame — track silme eşiği
     match_dist:     0.30        # m — Kalman eşleştirme eşiği
+    min_hits:       3           # frame — engel onay eşiği (yanlış pozitif filtresi)
 
 # ── Global planlama ───────────────────────────────────────────────────────────
 global_planner_node:
@@ -71,3 +72,4 @@ navigator_node:
     k_rep:          0.05        # APF itme sabiti (PythonRobotics ETA)
     emergency_dist: 0.30        # m — acil itme + REPLANNING eşiği
     goal_wait:      2.0         # s — GOAL_REACHED bekleme
+    replan_timeout: 5.0         # s — REPLANNING → IDLE reset (donma önleme)

@@ -86,6 +86,7 @@ class NavigatorNode(Node):
         self.declare_parameter('k_rep',         0.05)   # APF itme sabiti
         self.declare_parameter('emergency_dist',0.30)   # m — acil itme + REPLANNING
         self.declare_parameter('goal_wait',     2.0)
+        self.declare_parameter('replan_timeout',5.0)   # s — REPLANNING → IDLE reset
 
         self._dt           = self.get_parameter('dt').value
         self._kp_xy        = self.get_parameter('kp_xy').value
@@ -99,14 +100,16 @@ class NavigatorNode(Node):
         self._k_rep        = self.get_parameter('k_rep').value
         self._emg_dist     = self.get_parameter('emergency_dist').value
         self._goal_wait    = self.get_parameter('goal_wait').value
+        self._replan_timeout = self.get_parameter('replan_timeout').value
 
         # ── Durum ─────────────────────────────────────────────────────────────
-        self._state     = State.IDLE
-        self._pose      = [0.0, 0.0, 0.0]
-        self._goal      = None
-        self._traj      = None
-        self._obstacles = []
-        self._goal_time = None
+        self._state       = State.IDLE
+        self._pose        = [0.0, 0.0, 0.0]
+        self._goal        = None
+        self._traj        = None
+        self._obstacles   = []
+        self._goal_time   = None
+        self._replan_time = None   # REPLANNING başlangıç zamanı
 
         # ── Pub / Sub ─────────────────────────────────────────────────────────
         self._cmd_pub    = self.create_publisher(Twist, '/cmd_vel',  10)
@@ -165,6 +168,7 @@ class NavigatorNode(Node):
             if new == State.GOAL_REACHED:
                 self._goal_time = time.time()
             elif new == State.REPLANNING:
+                self._replan_time = time.time()
                 self._replan_pub.publish(Empty())
 
     # ── Ana kontrol döngüsü (20 Hz) ───────────────────────────────────────────
@@ -175,8 +179,18 @@ class NavigatorNode(Node):
         if s == State.IDLE:
             self._stop()
 
-        elif s in (State.PLANNING, State.REPLANNING):
+        elif s == State.PLANNING:
             self._stop()
+
+        elif s == State.REPLANNING:
+            self._stop()
+            if (self._replan_time is not None and
+                    time.time() - self._replan_time > self._replan_timeout):
+                self.get_logger().warn(
+                    f'REPLANNING {self._replan_timeout:.0f}s aşıldı → IDLE reset'
+                )
+                self._traj = None
+                self._set_state(State.IDLE)
 
         elif s == State.FOLLOWING:
             self._do_following()

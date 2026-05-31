@@ -38,6 +38,7 @@ class Track:
         Track._id_counter += 1
         self.id     = Track._id_counter
         self.miss   = 0
+        self.hits   = 1   # kaç ardışık frame'de onaylandı
         self.radius = radius
 
         # Durum: [x, y, vx, vy]
@@ -72,6 +73,7 @@ class Track:
         self.x = self.x + K @ (z - self.H @ self.x)
         self.P = (np.eye(4) - K @ self.H) @ self.P
         self.miss = 0
+        self.hits += 1
         if radius is not None:
             self.radius = radius
 
@@ -94,6 +96,7 @@ class PerceptionNode(Node):
         self.declare_parameter('v_dynamic',       0.04)
         self.declare_parameter('max_miss',        5)
         self.declare_parameter('match_dist',      0.30)
+        self.declare_parameter('min_hits',        3)    # onay eşiği: N frame görülmeli
 
         self.eps           = self.get_parameter('dbscan_eps').value
         self.min_pts       = self.get_parameter('dbscan_min_pts').value
@@ -105,6 +108,7 @@ class PerceptionNode(Node):
         self.v_dyn         = self.get_parameter('v_dynamic').value
         self.max_miss      = self.get_parameter('max_miss').value
         self.match_d       = self.get_parameter('match_dist').value
+        self.min_hits      = self.get_parameter('min_hits').value
 
         self.tracks: list[Track] = []
         self._robot_pose = [0.0, 0.0, 0.0]   # [x, y, yaw] world frame
@@ -152,6 +156,8 @@ class PerceptionNode(Node):
 
         obstacles = []
         for t in self.tracks:
+            if t.hits < self.min_hits:   # onaylanmamış track → yayımlama
+                continue
             speed = math.hypot(t.x[2], t.x[3])
             obstacles.append({
                 'id':      t.id,
