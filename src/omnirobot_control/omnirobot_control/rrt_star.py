@@ -175,7 +175,10 @@ class RRTStar:
         path = self._extract(nodes, best_goal_idx, goal)
 
         # Line-of-sight kısaltma (bölüm 6)
-        return self._shorten(path, obstacles)
+        path = self._shorten(path, obstacles)
+
+        # Bezier yumuşatma — keskin köşeleri gider, quintic smoother'a temiz girdi sağla
+        return self._bezier_smooth(path)
 
     # ── YARDIMCI METODLAR ────────────────────────────────────────────────────
 
@@ -254,6 +257,65 @@ class RRTStar:
             short.append(path[j])
             i = j
         return short
+
+    def _bezier_smooth(self, path: List[Point]) -> List[Point]:
+        """
+        Catmull-Rom → cubic Bezier ile keskin köşeleri gider.
+
+        Yol uzunluğuna göre otomatik n_out hesaplanır (≈ eta*1.5 aralıklı).
+        Sonuç quintic smoother için temiz, pürüzsüz waypoint listesidir.
+        """
+        if len(path) <= 2:
+            return path
+
+        n = len(path)
+        total_len = sum(
+            math.hypot(path[i+1][0] - path[i][0], path[i+1][1] - path[i][1])
+            for i in range(n - 1)
+        )
+        n_out = max(4, int(total_len / (self.eta * 1.5)) + 2)
+
+        n_segs = n - 1
+        result: List[Point] = []
+
+        for k in range(n_out):
+            # Global parametre [0, n_segs] aralığında eşit örnekleme
+            u   = k / (n_out - 1) * n_segs
+            seg = min(int(u), n_segs - 1)
+            t   = u - seg
+
+            # Catmull-Rom için 4 komşu kontrol noktası
+            p0 = path[max(seg - 1, 0)]
+            p1 = path[seg]
+            p2 = path[min(seg + 1, n - 1)]
+            p3 = path[min(seg + 2, n - 1)]
+
+            # Catmull-Rom → cubic Bezier iç kontrol noktaları
+            bcp1 = (
+                p1[0] + (p2[0] - p0[0]) / 6.0,
+                p1[1] + (p2[1] - p0[1]) / 6.0,
+            )
+            bcp2 = (
+                p2[0] - (p3[0] - p1[0]) / 6.0,
+                p2[1] - (p3[1] - p1[1]) / 6.0,
+            )
+
+            # Cubic Bezier değerlendirme: B(t) De Casteljau
+            u1 = 1.0 - t
+            x = (u1**3 * p1[0]
+                 + 3.0 * u1**2 * t * bcp1[0]
+                 + 3.0 * u1 * t**2 * bcp2[0]
+                 + t**3 * p2[0])
+            y = (u1**3 * p1[1]
+                 + 3.0 * u1**2 * t * bcp1[1]
+                 + 3.0 * u1 * t**2 * bcp2[1]
+                 + t**3 * p2[1])
+            result.append((x, y))
+
+        # Başlangıç ve bitiş noktalarını orijinal değerlere sabitle
+        result[0]  = path[0]
+        result[-1] = path[-1]
+        return result
 
 
 # ── HIZLI TEST ────────────────────────────────────────────────────────────────
