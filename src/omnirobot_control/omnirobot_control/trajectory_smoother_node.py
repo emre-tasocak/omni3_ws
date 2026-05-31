@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-omni3_control/trajectory_smoother_node.py
+omnirobot_control/trajectory_smoother_node.py
 ==========================================
 Quintic polynomial yol yumuşatma ROS2 node'u.
 
@@ -13,7 +13,7 @@ Yayınlar:
     /trajectory_viz        (nav_msgs/Path)            — RViz2 görselleştirme
 
 Çalıştırma:
-    ros2 run omni3_control trajectory_smoother_node
+    ros2 run omnirobot_control trajectory_smoother_node
 """
 
 import json
@@ -24,9 +24,17 @@ import numpy as np
 import rclpy
 from nav_msgs.msg import Path
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from std_msgs.msg import String
 
-from omni3_control.quintic_segment import QuinticSmoother, MultiSegmentTrajectory
+_LATCHED_QOS = QoSProfile(
+    depth=1,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+    reliability=ReliabilityPolicy.RELIABLE,
+    history=HistoryPolicy.KEEP_LAST,
+)
+
+from omnirobot_control.quintic_segment import QuinticSmoother, MultiSegmentTrajectory
 
 Point    = Tuple[float, float]
 Obstacle = Tuple[float, float, float]
@@ -44,12 +52,12 @@ class TrajectorySmoother(Node):
         super().__init__('trajectory_smoother_node')
 
         # Parametreler
-        self.declare_parameter('v_nominal',    0.30)
-        self.declare_parameter('T_min',        0.50)
+        self.declare_parameter('v_nominal',    0.28)
+        self.declare_parameter('T_min',        0.30)
         self.declare_parameter('theta_mode',   'tangent')
         self.declare_parameter('theta_fixed',  0.0)
-        self.declare_parameter('d_safe',       0.42)
-        self.declare_parameter('check_dt',     0.05)    # çarpışma örnekleme adımı
+        self.declare_parameter('d_safe',       0.35)
+        self.declare_parameter('check_dt',     0.05)
 
         v_nom   = self.get_parameter('v_nominal').value
         T_min   = self.get_parameter('T_min').value
@@ -65,7 +73,7 @@ class TrajectorySmoother(Node):
         self._obstacles: List[Obstacle] = []
 
         # Pub
-        self._traj_pub = self.create_publisher(String, '/reference_trajectory', 10)
+        self._traj_pub = self.create_publisher(String, '/reference_trajectory', _LATCHED_QOS)
         self._viz_pub  = self.create_publisher(Path,   '/trajectory_viz',       10)
 
         # Sub
@@ -82,7 +90,8 @@ class TrajectorySmoother(Node):
     def _obs_cb(self, msg: String) -> None:
         try:
             data = json.loads(msg.data)
-            self._obstacles = [(d['cx'], d['cy'], d['r']) for d in data]
+            # perception_node JSON: {"id","x","y","r","vx","vy","dynamic"}
+            self._obstacles = [(d['x'], d['y'], d['r']) for d in data]
         except Exception as e:
             self.get_logger().warn(f'Engel JSON hatası: {e}', throttle_duration_sec=2.0)
 
@@ -96,7 +105,9 @@ class TrajectorySmoother(Node):
             for p in msg.poses
         ]
 
-        traj = self._smoother.smooth(waypoints, self._obstacles or None)
+        # Smoother'da collision check kapalı: RRT* zaten engel kaçındı,
+        # gerçek zamanlı kaçınma navigator APF'de yapılıyor.
+        traj = self._smoother.smooth(waypoints, None)
         if traj is None:
             self.get_logger().error('Quintic smoother başarısız oldu')
             return
@@ -153,7 +164,10 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':

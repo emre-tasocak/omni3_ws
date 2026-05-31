@@ -1,5 +1,5 @@
 """
-omni3_control/quintic_segment.py
+omnirobot_control/quintic_segment.py
 ==================================
 Çoklu-segment 5. derece (quintic) polinom trayektori — ROS2'den bağımsız.
 

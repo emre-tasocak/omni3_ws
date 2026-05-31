@@ -1,5 +1,5 @@
 """
-omni3_control/perception.py
+omnirobot_control/perception.py
 ============================
 LIDAR algılama katmanı — ROS2'den bağımsız, saf NumPy implementasyonu.
 

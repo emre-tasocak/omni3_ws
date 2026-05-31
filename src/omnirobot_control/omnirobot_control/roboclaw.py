@@ -27,8 +27,11 @@ class RoboClawError(Exception):
 
 class Roboclaw:
     def __init__(self, port: str, baud: int = 38400, timeout: float = 0.5):
+        import time
         self._lock = Lock()
         self._ser = serial.Serial(port, baud, timeout=timeout)
+        time.sleep(0.1)   # USB-CDC cihazlar bağlandıktan hemen sonra cevap vermeyebilir
+        self._ser.reset_input_buffer()
 
     def close(self):
         self._ser.close()

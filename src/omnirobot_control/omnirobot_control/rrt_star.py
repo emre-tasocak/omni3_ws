@@ -1,5 +1,5 @@
 """
-omni3_control/rrt_star.py
+omnirobot_control/rrt_star.py
 ==========================
 RRT* global planlaycı — dünya çerçevesinde, daire engeller üzerinde.
 
