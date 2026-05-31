@@ -118,8 +118,10 @@ class NavigatorNode(Node):
         self._obstacles         = []
         self._goal_time         = None
         self._replan_time       = None
-        self._stuck_check_pose  = None   # tıkanma tespiti referans konumu
+        self._stuck_check_pose  = None
         self._stuck_check_time  = None
+        self._pending_traj      = None   # race condition: PLANNING öncesi gelen traj
+        self._pending_traj_time = None
 
         # ── Pub / Sub ─────────────────────────────────────────────────────────
         self._cmd_pub    = self.create_publisher(Twist, '/cmd_vel',  10)
@@ -148,13 +150,19 @@ class NavigatorNode(Node):
             self._obstacles = []
 
     def _traj_cb(self, msg: String):
-        if self._state not in (State.PLANNING, State.REPLANNING):
-            return
         try:
-            self._traj = _Trajectory(json.loads(msg.data))
-            self._set_state(State.FOLLOWING)
+            data = json.loads(msg.data)
         except Exception as e:
             self.get_logger().error(f'Trayektori JSON hatası: {e}')
+            return
+
+        if self._state in (State.PLANNING, State.REPLANNING):
+            self._traj = _Trajectory(data)
+            self._set_state(State.FOLLOWING)
+        else:
+            # Race condition: PLANNING öncesi geldi — sakla, taze ise kullanılacak
+            self._pending_traj = data
+            self._pending_traj_time = time.time()
 
     def _goal_cb(self, msg: PoseStamped):
         gx  = msg.pose.position.x
@@ -194,6 +202,16 @@ class NavigatorNode(Node):
 
         elif s == State.PLANNING:
             self._stop()
+            # Bekleyen taze trayektori varsa hemen uygula (race condition fix)
+            if (self._pending_traj is not None and
+                    self._pending_traj_time is not None and
+                    time.time() - self._pending_traj_time < 3.0):
+                try:
+                    self._traj = _Trajectory(self._pending_traj)
+                    self._pending_traj = None
+                    self._set_state(State.FOLLOWING)
+                except Exception as e:
+                    self.get_logger().error(f'Bekleyen trayektori hatası: {e}')
 
         elif s == State.REPLANNING:
             self._stop()
