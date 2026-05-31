@@ -97,6 +97,9 @@ class PerceptionNode(Node):
         self.declare_parameter('max_miss',        5)
         self.declare_parameter('match_dist',      0.30)
         self.declare_parameter('min_hits',        3)    # onay eşiği: N frame görülmeli
+        # Dinamik sınıflandırma boyut filtresi (insan bacağı = ~35–55 cm çap)
+        self.declare_parameter('dyn_r_min',       0.175)  # m — min yarıçap (35 cm çap)
+        self.declare_parameter('dyn_r_max',       0.275)  # m — max yarıçap (55 cm çap)
 
         self.eps           = self.get_parameter('dbscan_eps').value
         self.min_pts       = self.get_parameter('dbscan_min_pts').value
@@ -109,6 +112,8 @@ class PerceptionNode(Node):
         self.max_miss      = self.get_parameter('max_miss').value
         self.match_d       = self.get_parameter('match_dist').value
         self.min_hits      = self.get_parameter('min_hits').value
+        self.dyn_r_min     = self.get_parameter('dyn_r_min').value
+        self.dyn_r_max     = self.get_parameter('dyn_r_max').value
 
         self.tracks: list[Track] = []
         self._robot_pose = [0.0, 0.0, 0.0]   # [x, y, yaw] world frame
@@ -159,6 +164,9 @@ class PerceptionNode(Node):
             if t.hits < self.min_hits:   # onaylanmamış track → yayımlama
                 continue
             speed = math.hypot(t.x[2], t.x[3])
+            # Dinamik: hareket eden VE insan boyutunda (35–55 cm çap)
+            in_person_size = self.dyn_r_min <= t.radius <= self.dyn_r_max
+            is_dynamic     = bool(speed > self.v_dyn and in_person_size)
             obstacles.append({
                 'id':      t.id,
                 'x':       round(float(t.x[0]), 3),
@@ -166,7 +174,7 @@ class PerceptionNode(Node):
                 'r':       round(float(t.radius), 3),
                 'vx':      round(float(t.x[2]), 3),
                 'vy':      round(float(t.x[3]), 3),
-                'dynamic': bool(speed > self.v_dyn),
+                'dynamic': is_dynamic,
             })
 
         self._publish(obstacles)

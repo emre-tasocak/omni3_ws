@@ -37,6 +37,8 @@ perception_node:
     max_miss:       5           # frame — track silme eşiği
     match_dist:     0.30        # m — Kalman eşleştirme eşiği
     min_hits:       3           # frame — engel onay eşiği (yanlış pozitif filtresi)
+    dyn_r_min:      0.175       # m — dinamik engel min yarıçapı (35 cm çap — insan bacağı alt sınırı)
+    dyn_r_max:      0.275       # m — dinamik engel max yarıçapı (55 cm çap — insan gövdesi üst sınırı)
 
 # ── Global planlama ───────────────────────────────────────────────────────────
 global_planner_node:

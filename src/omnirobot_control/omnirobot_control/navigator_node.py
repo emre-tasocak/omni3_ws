@@ -271,33 +271,35 @@ class NavigatorNode(Node):
             self._stuck_check_pose = (px, py)
             self._stuck_check_time = now
 
-        # En yakın engel mesafesi (yüzey)
-        nearest = self._nearest_dist(px, py)
+        # Engel mesafeleri: tümü (DWA geometrisi için) ve yalnızca dinamik (hız için)
+        nearest_all = self._nearest_dist(px, py)
+        nearest_dyn = self._nearest_dist_dynamic(px, py)
 
         # Pure Pursuit carrot noktası → DWA hedef yönü
         carrot = self._find_carrot(px, py)
 
-        # Hedef yakınında (son lookahead içinde) carrot yerine direkt hedef kullan
+        # Hedef yakınında carrot yerine direkt hedef kullan
         dist_goal = math.hypot(px - gx, py - gy)
         if dist_goal < self._lookahead * 1.5:
             tx, ty = gx, gy
         else:
             tx, ty = carrot
 
-        # Hız üst sınırı: engele yaklaştıkça düşür
-        if nearest < self._d_safe:
-            ratio = max(0.10, (nearest - self._robot_r) /
-                        max(self._d_safe - self._robot_r, 0.01))
+        # Hız üst sınırı: SADECE dinamik engellerle azaltılır (insan boyutunda, hareket eden)
+        # Statik engeller DWA'nın geometrik çevreletiyle geçilir — hızı düşürmez
+        if nearest_dyn < self._d_safe:
+            ratio   = max(0.25, (nearest_dyn - self._robot_r) /
+                         max(self._d_safe - self._robot_r, 0.01))
             v_limit = self._v_max * ratio
         else:
             v_limit = self._v_max
 
         # Hedefe yaklaşırken yavaşla
         if dist_goal < self._lookahead * 2:
-            v_limit *= max(0.25, dist_goal / (self._lookahead * 2))
+            v_limit *= max(0.30, dist_goal / (self._lookahead * 2))
 
-        # DWA: en iyi (vx, vy) seç (kaçış modu dahil — hiç (0,0) dönmez)
-        vx, vy = self._dwa(px, py, tx, ty, v_limit, nearest)
+        # DWA: TÜM engelleri geometrik olarak çevrele, hızı sadece dinamik engelle kıs
+        vx, vy = self._dwa(px, py, tx, ty, v_limit, nearest_all)
         self._publish_vel(vx, vy, 0.0)
 
     # ── DWA ───────────────────────────────────────────────────────────────────
@@ -482,11 +484,22 @@ class NavigatorNode(Node):
     # ── Yardımcılar ───────────────────────────────────────────────────────────
 
     def _nearest_dist(self, px: float, py: float) -> float:
+        """Tüm engeller arasında en yakın yüzey mesafesi (DWA geometrisi için)."""
         if not self._obstacles:
             return float('inf')
         return min(
             max(math.hypot(px - o['x'], py - o['y']) - o.get('r', 0.15), 0.0)
             for o in self._obstacles
+        )
+
+    def _nearest_dist_dynamic(self, px: float, py: float) -> float:
+        """Sadece dinamik (insan boyutunda, hareket eden) engeller için en yakın mesafe."""
+        dyn = [o for o in self._obstacles if o.get('dynamic', False)]
+        if not dyn:
+            return float('inf')
+        return min(
+            max(math.hypot(px - o['x'], py - o['y']) - o.get('r', 0.15), 0.0)
+            for o in dyn
         )
 
     def _publish_vel(self, vx: float, vy: float, wz: float):
