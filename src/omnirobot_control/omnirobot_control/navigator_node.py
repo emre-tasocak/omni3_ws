@@ -76,10 +76,11 @@ class NavigatorNode(Node):
         # ── Parametreler ──────────────────────────────────────────────────────
         self.declare_parameter('dt',            0.05)
         self.declare_parameter('kp_xy',         1.5)
-        self.declare_parameter('kp_ang',        2.5)
+        self.declare_parameter('kp_ang',        1.2)
         self.declare_parameter('v_max',         0.40)
+        self.declare_parameter('w_max',         0.80)   # rad/s — açısal hız sınırı
         self.declare_parameter('pos_tol',       0.07)
-        self.declare_parameter('ang_tol',       0.05)
+        self.declare_parameter('ang_tol',       0.10)
         self.declare_parameter('lat_replan',    0.80)
         self.declare_parameter('apf_influence', 0.80)   # m — APF etki mesafesi (yüzey)
         self.declare_parameter('k_rep',         0.05)   # APF itme sabiti
@@ -90,6 +91,7 @@ class NavigatorNode(Node):
         self._kp_xy        = self.get_parameter('kp_xy').value
         self._kp_ang       = self.get_parameter('kp_ang').value
         self._v_max        = self.get_parameter('v_max').value
+        self._w_max        = self.get_parameter('w_max').value
         self._pos_tol      = self.get_parameter('pos_tol').value
         self._ang_tol      = self.get_parameter('ang_tol').value
         self._lat_replan   = self.get_parameter('lat_replan').value
@@ -234,6 +236,8 @@ class NavigatorNode(Node):
         if v > self._v_max:
             vx *= self._v_max / v
             vy *= self._v_max / v
+
+        wz = max(-self._w_max, min(self._w_max, wz))
 
         self._publish_vel(vx, vy, wz)
 

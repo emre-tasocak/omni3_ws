@@ -51,8 +51,8 @@ trajectory_smoother_node:
   ros__parameters:
     v_nominal:   0.28           # m/s
     T_min:       0.30           # s — min segment süresi
-    theta_mode:  tangent        # tangent | fixed
-    theta_fixed: 0.0            # rad (theta_mode=fixed ise)
+    theta_mode:  fixed          # fixed: omni robot döndürülmez, sadece öteleme
+    theta_fixed: 0.0            # rad — sabit yönelim (x ekseni ileri)
     d_safe:      0.35           # m
     check_dt:    0.05           # s — çarpışma örnekleme adımı
 
@@ -61,10 +61,11 @@ navigator_node:
   ros__parameters:
     dt:             0.05        # s — kontrol döngüsü (20 Hz)
     kp_xy:          1.5         # P kazancı (pozisyon)
-    kp_ang:         2.5         # P kazancı (açı)
+    kp_ang:         1.2         # P kazancı (açı) — düşük: omni için az dönüş yeterli
     v_max:          0.40        # m/s
+    w_max:          0.80        # rad/s — maksimum açısal hız sınırı
     pos_tol:        0.07        # m — varış toleransı
-    ang_tol:        0.05        # rad — varış açı toleransı
+    ang_tol:        0.10        # rad — varış açı toleransı (fixed mod: geniş)
     lat_replan:     0.80        # m — lateral sapma → replan
     apf_influence:  0.80        # m — APF yüzey etki mesafesi (PythonRobotics d0)
     k_rep:          0.05        # APF itme sabiti (PythonRobotics ETA)
