@@ -377,35 +377,61 @@ class NavigatorNode(Node):
             return float(vx_m[best]), float(vy_m[best])
 
         # ── Kaçış modu: hiç geçerli aday yoksa en açık yöne git ─────────────
-        # Hız sınırını kaldır (tüm 36 yöne bak, en düşük hız kademesinde)
-        A_all  = self._cand_A
-        S_all  = self._cand_S
-        vx_all = self._cand_vx
-        vy_all = self._cand_vy
+        # 36 yönün hepsine bak (tüm hız kademeleri dahil), tek-adım clearance ile sırala.
+        # Hedef yönü ikincil kriter olarak kullan — önce en açık yön, sonra hedefe yakın.
+        A_full  = self._cand_A
+        S_full  = self._cand_S
+        N_full  = len(A_full)
 
-        v_escape = self._v_max * 0.25
-        esc_mask = np.abs(S_all - S_all.min()) < 1e-6  # en düşük hız kademesi
-        A_e  = A_all[esc_mask]
-        vx_e = v_escape * np.cos(A_e)
-        vy_e = v_escape * np.sin(A_e)
+        v_escape = max(self._v_max * 0.20, 0.10)   # min 10 cm/s
+        vx_e = v_escape * np.cos(A_full)
+        vy_e = v_escape * np.sin(A_full)
 
-        # Bir adım sonrasındaki clearance hesabı
         ex = px + vx_e * sim_dt
         ey = py + vy_e * sim_dt
+
         if self._obstacles:
             dxe = ex[:, None] - obs_x[None, :]
             dye = ey[:, None] - obs_y[None, :]
             clr_e = np.maximum(np.sqrt(dxe**2 + dye**2) - obs_r[None, :], 0.0).min(axis=1)
         else:
-            clr_e = np.full(len(A_e), self._max_clear)
+            clr_e = np.full(N_full, self._max_clear)
 
-        best_e = int(np.argmax(clr_e))
+        # Eşit açıklıkta olanlar arasında hedefe daha yöneli olanı seç
+        target_angle = math.atan2(ty - py, tx - px)
+        ang_diff_e   = np.abs(np.angle(np.exp(1j * (A_full - target_angle))))
+        heading_e    = 1.0 - ang_diff_e / math.pi
+
+        # Normalize clearance ve heading → ağırlıklı puan (clearance baskın)
+        clr_norm    = clr_e / (clr_e.max() + 1e-9)
+        escape_score = 0.80 * clr_norm + 0.20 * heading_e
+
+        # Sadece N_full içindeki en iyi yönü al (tüm adaylar, S bağımsız)
+        # Unique yönler istiyoruz — S_full'dan bağımsız A_full al
+        unique_A = np.linspace(-math.pi, math.pi, self._n_dir, endpoint=False)
+        vx_u = v_escape * np.cos(unique_A)
+        vy_u = v_escape * np.sin(unique_A)
+        eu_x = px + vx_u * sim_dt
+        eu_y = py + vy_u * sim_dt
+        if self._obstacles:
+            dxu = eu_x[:, None] - obs_x[None, :]
+            dyu = eu_y[:, None] - obs_y[None, :]
+            clr_u = np.maximum(np.sqrt(dxu**2 + dyu**2) - obs_r[None, :], 0.0).min(axis=1)
+        else:
+            clr_u = np.full(self._n_dir, self._max_clear)
+
+        ang_diff_u = np.abs(np.angle(np.exp(1j * (unique_A - target_angle))))
+        heading_u  = 1.0 - ang_diff_u / math.pi
+        clr_u_norm = clr_u / (clr_u.max() + 1e-9)
+        esc_score_u = 0.80 * clr_u_norm + 0.20 * heading_u
+
+        best_e = int(np.argmax(esc_score_u))
         self.get_logger().warn(
-            f'DWA kaçış: yön={math.degrees(A_e[best_e]):.0f}° '
-            f'clr={clr_e[best_e]:.2f}m  engel={nearest:.2f}m',
+            f'DWA kaçış: yön={math.degrees(unique_A[best_e]):.0f}° '
+            f'clr={clr_u[best_e]:.2f}m  engel={nearest:.2f}m',
             throttle_duration_sec=0.5,
         )
-        return float(vx_e[best_e]), float(vy_e[best_e])
+        return float(vx_u[best_e]), float(vy_u[best_e])
 
     # ── Pure Pursuit carrot ───────────────────────────────────────────────────
 

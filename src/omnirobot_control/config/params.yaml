@@ -41,10 +41,10 @@ perception_node:
 # ── Global planlama ───────────────────────────────────────────────────────────
 global_planner_node:
   ros__parameters:
-    n_max:      2000            # RRT* max iterasyon
+    n_max:      3000            # RRT* max iterasyon (artırıldı: dar geçit)
     eta:        0.35            # m — max steer adımı
     p_goal:     0.15            # hedef bias olasılığı
-    d_safe:     0.35            # m — robot r + güvenlik payı
+    d_safe:     0.20            # m — engel şişirme marjı (azaltıldı: dar geçitten yol bul)
     map_margin: 2.0             # m — arama alanı genişletme
 
 # ── Trayektori yumuşatma ─────────────────────────────────────────────────────
@@ -61,23 +61,23 @@ trajectory_smoother_node:
 navigator_node:
   ros__parameters:
     dt:              0.05        # s  — kontrol döngüsü (20 Hz)
-    v_max:           0.35        # m/s — maksimum hız
-    lookahead:       0.50        # m  — Pure Pursuit carrot ufku
-    pos_tol:         0.08        # m  — varış toleransı
+    v_max:           1.00        # m/s — maksimum hız (3x artırıldı)
+    lookahead:       0.70        # m  — Pure Pursuit carrot ufku (hıza orantılı büyütüldü)
+    pos_tol:         0.10        # m  — varış toleransı
     robot_radius:    0.27        # m  — fiziksel yarıçap (hız regülasyonu baz çizgisi)
     dwa_clearance:   0.13        # m  — DWA min yüzey boşluğu; bu altında aday elenir
-    d_safe:          0.45        # m  — bu mesafeye girince hız azaltılır
+    d_safe:          0.70        # m  — bu mesafeye girince hız azaltılır (hızla orantılı)
     # DWA parametreleri
     dwa_alpha:       0.60        # heading puanı ağırlığı
-    dwa_beta:        0.30        # clearance puanı ağırlığı (artırıldı)
+    dwa_beta:        0.30        # clearance puanı ağırlığı
     dwa_gamma:       0.10        # hız puanı ağırlığı
     dwa_n_dir:       36          # yön örnekleme (her 10°)
     dwa_n_speed:     8           # hız örnekleme kademesi
-    dwa_sim_time:    0.8         # s  — simülasyon ufku (azaltıldı: aşırı konservatiflik önlenir)
+    dwa_sim_time:    0.8         # s  — simülasyon ufku
     dwa_sim_steps:   8           # simülasyon adım sayısı
     dwa_max_clear:   2.0         # m  — clearance normalize referansı
     # Tıkanma & zaman aşımı
-    stuck_threshold: 0.05        # m  — bu kadar hareket yoksa stuck
-    stuck_window:    2.5         # s  — tıkanma kontrol penceresi
-    replan_timeout:  5.0         # s  — REPLANNING → IDLE reset
+    stuck_threshold: 0.10        # m  — bu kadar hareket yoksa stuck (hız arttı, eşik de arttı)
+    stuck_window:    5.0         # s  — tıkanma kontrol penceresi (daha geniş: geçiş süresi)
+    replan_timeout:  8.0         # s  — REPLANNING → IDLE reset
     goal_wait:       2.0         # s  — GOAL_REACHED sonrası bekleme
