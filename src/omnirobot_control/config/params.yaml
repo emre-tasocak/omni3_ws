@@ -64,9 +64,8 @@ navigator_node:
     v_max:           0.35        # m/s — maksimum hız
     lookahead:       0.50        # m  — Pure Pursuit carrot ufku
     pos_tol:         0.08        # m  — varış toleransı
-    robot_radius:    0.27        # m  — robot yarıçapı (güvenlik taban çizgisi)
-    d_safe:          0.40        # m  — bu mesafenin altında hız azaltılır
-    emergency_dist:  0.25        # m  — bu mesafenin altında REPLANNING
+    robot_radius:    0.27        # m  — DWA çarpışma eşiği (yüzey mesafesi < bu → aday geçersiz)
+    d_safe:          0.40        # m  — bu mesafeye girince hız azaltılır
     # DWA parametreleri
     dwa_alpha:       0.70        # heading puanı ağırlığı
     dwa_beta:        0.20        # clearance puanı ağırlığı

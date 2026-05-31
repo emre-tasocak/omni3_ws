@@ -69,9 +69,8 @@ class NavigatorNode(Node):
         self.declare_parameter('v_max',           0.35)   # m/s
         self.declare_parameter('lookahead',       0.50)   # m  — Pure Pursuit ufku
         self.declare_parameter('pos_tol',         0.08)   # m  — varış toleransı
-        self.declare_parameter('robot_radius',    0.27)   # m  — robot yarıçapı
-        self.declare_parameter('d_safe',          0.40)   # m  — güvenli mesafe eşiği
-        self.declare_parameter('emergency_dist',  0.25)   # m  — acil dur eşiği
+        self.declare_parameter('robot_radius',    0.27)   # m  — robot yarıçapı (DWA çarpışma eşiği)
+        self.declare_parameter('d_safe',          0.40)   # m  — hız azaltma başlangıç mesafesi
         # DWA
         self.declare_parameter('dwa_alpha',       0.70)   # heading ağırlığı
         self.declare_parameter('dwa_beta',        0.20)   # clearance ağırlığı
@@ -93,7 +92,6 @@ class NavigatorNode(Node):
         self._pos_tol     = self.get_parameter('pos_tol').value
         self._robot_r     = self.get_parameter('robot_radius').value
         self._d_safe      = self.get_parameter('d_safe').value
-        self._emg_dist    = self.get_parameter('emergency_dist').value
         self._alpha       = self.get_parameter('dwa_alpha').value
         self._beta        = self.get_parameter('dwa_beta').value
         self._gamma       = self.get_parameter('dwa_gamma').value
@@ -274,15 +272,6 @@ class NavigatorNode(Node):
         # En yakın engel mesafesi (yüzey)
         nearest = self._nearest_dist(px, py)
 
-        # Acil dur: robot_radius içinde engel → REPLANNING
-        if nearest < self._emg_dist:
-            self.get_logger().warn(
-                f'Acil! Engel mesafesi {nearest:.2f}m < {self._emg_dist}m → REPLANNING'
-            )
-            self._stop()
-            self._set_state(State.REPLANNING)
-            return
-
         # Pure Pursuit carrot noktası → DWA hedef yönü
         carrot = self._find_carrot(px, py)
 
@@ -295,8 +284,8 @@ class NavigatorNode(Node):
 
         # Hız üst sınırı: engele yaklaştıkça düşür
         if nearest < self._d_safe:
-            ratio = max(0.15, (nearest - self._emg_dist) /
-                        max(self._d_safe - self._emg_dist, 0.01))
+            ratio = max(0.10, (nearest - self._robot_r) /
+                        max(self._d_safe - self._robot_r, 0.01))
             v_limit = self._v_max * ratio
         else:
             v_limit = self._v_max
@@ -307,6 +296,14 @@ class NavigatorNode(Node):
 
         # DWA: en iyi (vx, vy) seç
         vx, vy = self._dwa(px, py, tx, ty, v_limit)
+
+        # DWA hiç geçerli aday bulamazsa (gerçek tıkanma) → log
+        if abs(vx) < 1e-6 and abs(vy) < 1e-6:
+            self.get_logger().warn(
+                f'DWA: engel {nearest:.2f}m — geçerli yön yok, bekliyor.',
+                throttle_duration_sec=1.0
+            )
+
         self._publish_vel(vx, vy, 0.0)
 
     # ── DWA ───────────────────────────────────────────────────────────────────
