@@ -57,23 +57,19 @@ trajectory_smoother_node:
     d_safe:      0.35           # m
     check_dt:    0.05           # s — çarpışma örnekleme adımı
 
-# ── Navigatör ────────────────────────────────────────────────────────────────
+# ── Navigatör (Pure Pursuit) ─────────────────────────────────────────────────
 navigator_node:
   ros__parameters:
-    dt:             0.05        # s — kontrol döngüsü (20 Hz)
-    kp_xy:          1.5         # P kazancı (pozisyon)
-    kp_ang:         1.2         # P kazancı (açı) — düşük: omni için az dönüş yeterli
-    v_max:          0.40        # m/s
-    w_max:          0.80        # rad/s — maksimum açısal hız sınırı
-    pos_tol:        0.07        # m — varış toleransı
-    ang_tol:        0.10        # rad — varış açı toleransı (fixed mod: geniş)
-    lat_replan:     0.80        # m — lateral sapma → replan
-    apf_influence:  0.80        # m — APF yüzey etki mesafesi (PythonRobotics d0)
-    k_rep:          0.05        # APF itme sabiti (PythonRobotics ETA)
-    emergency_dist:   0.30       # m — statik engel acil itme eşiği
-    k_rep_dynamic:    0.40       # dinamik engel APF katsayısı (statik k_rep=0.05'ten 8x güçlü)
-    predict_tau:      0.8        # s — dinamik engel konum tahmin ufku
-    stuck_threshold:  0.05       # m — tıkanma: bu kadar hareket yoksa stuck
-    stuck_window:     2.5        # s — tıkanma kontrol penceresi
-    goal_wait:        2.0        # s — GOAL_REACHED bekleme
-    replan_timeout:   5.0        # s — REPLANNING → IDLE reset (donma önleme)
+    dt:              0.05        # s  — kontrol döngüsü (20 Hz)
+    v_max:           0.35        # m/s — maksimum hız (biraz düşürdük: güvenli)
+    lookahead:       0.45        # m  — Pure Pursuit ufku (robot çapı ~0.54m)
+    pos_tol:         0.08        # m  — varış toleransı
+    k_rep:           0.03        # statik APF katsayısı (çok hafif — sadece saptırır)
+    k_rep_dynamic:   0.40        # dinamik APF katsayısı (güçlü — insan/engel kaçınma)
+    predict_tau:     0.8         # s  — dinamik engel konum tahmin ufku
+    apf_influence:   0.80        # m  — APF etki yarıçapı
+    emergency_dist:  0.30        # m  — acil dur + REPLANNING eşiği
+    stuck_threshold: 0.05        # m  — tıkanma: bu kadar hareket yoksa stuck
+    stuck_window:    2.5         # s  — tıkanma kontrol penceresi
+    replan_timeout:  5.0         # s  — REPLANNING → IDLE reset
+    goal_wait:       2.0         # s  — GOAL_REACHED sonrası bekleme

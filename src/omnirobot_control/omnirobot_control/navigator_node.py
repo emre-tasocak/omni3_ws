@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 """
-navigator_node.py
-/reference_trajectory + /obstacles + /odom → /cmd_vel
+navigator_node.py  —  Pure Pursuit yerel planlayıcı
 
-Durum makinesi (4 durum):
+Pipeline:
+  /global_path + /obstacles + /odom  →  Pure Pursuit + APF  →  /cmd_vel
+
+Durum makinesi:
   IDLE → PLANNING → FOLLOWING → GOAL_REACHED → IDLE
                  ↑               ↓
                  └── REPLANNING ─┘
 
-Engel kaçınma:
-  PythonRobotics-tarzı birleşik APF (yalnızca FOLLOWING'de):
-    F_rep = k_rep * (1/d_surface - 1/d_influence) / d_surface² * yön
-  Engel emergency_dist içine girince: güçlü itme + REPLANNING.
+Yol takibi:
+  Coulter (1992) Pure Pursuit — path üzerinde lookahead mesafesindeki
+  "havuç" noktasına doğru ilerle.  Zaman bazlı trajectory yok, dolayısıyla
+  referans sapması ve zig-zag yok.
 
-Referans:
-  AtsushiSakai/PythonRobotics — PotentialFieldPlanning
-  (github.com/AtsushiSakai/PythonRobotics)
+Hız regülasyonu:
+  Macenski et al. (2020) Regulated Pure Pursuit — engele yaklaştıkça hız
+  doğrusal olarak azalır; acil mesafeye girince tam dur + REPLANNING.
+
+Engel kaçınma:
+  Statik : hafif APF (k_rep küçük — sadece hafifçe saptırır)
+  Dinamik: tahminli APF (tau saniye sonraki konumdan kaç — güçlü)
+  Acil   : emergency_dist içinde → normalize kaçış hızı + REPLANNING
+
+Tıkanma:
+  stuck_window saniye içinde stuck_threshold'dan az ilerleme → REPLANNING
 """
 
 import json
 import math
 import time
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -28,7 +39,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import Twist, PoseStamped
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 from std_msgs.msg import String, Empty
 
 _LATCHED_QOS = QoSProfile(
@@ -37,6 +48,8 @@ _LATCHED_QOS = QoSProfile(
     reliability=ReliabilityPolicy.RELIABLE,
     history=HistoryPolicy.KEEP_LAST,
 )
+
+Point = Tuple[float, float]
 
 
 class State:
@@ -47,96 +60,66 @@ class State:
     GOAL_REACHED = 'GOAL_REACHED'
 
 
-class _Trajectory:
-    def __init__(self, data: dict):
-        from omnirobot_control.quintic_segment import MultiSegmentTrajectory
-        self._traj = MultiSegmentTrajectory.from_dict(data)
-        self._t0   = time.time()
-
-    @property
-    def elapsed(self) -> float:
-        return time.time() - self._t0
-
-    @property
-    def total_time(self) -> float:
-        return self._traj.total_time
-
-    def eval(self, t):
-        return self._traj.eval(t)
-
-    def eval_dot(self, t):
-        return self._traj.eval_dot(t)
-
-
 class NavigatorNode(Node):
 
     def __init__(self):
         super().__init__('navigator_node')
 
         # ── Parametreler ──────────────────────────────────────────────────────
-        self.declare_parameter('dt',            0.05)
-        self.declare_parameter('kp_xy',         1.5)
-        self.declare_parameter('kp_ang',        1.2)
-        self.declare_parameter('v_max',         0.40)
-        self.declare_parameter('w_max',         0.80)   # rad/s — açısal hız sınırı
-        self.declare_parameter('pos_tol',       0.07)
-        self.declare_parameter('ang_tol',       0.10)
-        self.declare_parameter('lat_replan',    0.80)
-        self.declare_parameter('apf_influence', 0.80)   # m — APF etki mesafesi (yüzey)
-        self.declare_parameter('k_rep',         0.05)   # APF itme sabiti
-        self.declare_parameter('emergency_dist',   0.30)  # m — statik engel acil itme
-        self.declare_parameter('k_rep_dynamic',    0.40)  # dinamik engel APF katsayısı (statikten büyük)
-        self.declare_parameter('predict_tau',      0.8)   # s — dinamik engel tahmin ufku
-        self.declare_parameter('stuck_threshold',  0.05)  # m — tıkanma hareket eşiği
-        self.declare_parameter('stuck_window',     2.5)   # s — tıkanma kontrol penceresi
-        self.declare_parameter('goal_wait',        2.0)
-        self.declare_parameter('replan_timeout',   5.0)   # s — REPLANNING → IDLE reset
+        self.declare_parameter('dt',              0.05)
+        self.declare_parameter('v_max',           0.40)   # m/s — maksimum hız
+        self.declare_parameter('lookahead',       0.45)   # m  — Pure Pursuit ufku
+        self.declare_parameter('pos_tol',         0.08)   # m  — varış toleransı
+        self.declare_parameter('k_rep',           0.03)   # statik APF katsayısı (hafif)
+        self.declare_parameter('k_rep_dynamic',   0.40)   # dinamik APF katsayısı (güçlü)
+        self.declare_parameter('predict_tau',     0.8)    # s  — dinamik engel tahmin ufku
+        self.declare_parameter('apf_influence',   0.80)   # m  — APF etki yarıçapı
+        self.declare_parameter('emergency_dist',  0.30)   # m  — acil dur eşiği
+        self.declare_parameter('stuck_threshold', 0.05)   # m  — tıkanma eşiği
+        self.declare_parameter('stuck_window',    2.5)    # s  — tıkanma penceresi
+        self.declare_parameter('replan_timeout',  5.0)    # s  — REPLANNING → IDLE
+        self.declare_parameter('goal_wait',       2.0)    # s  — GOAL_REACHED bekleme
 
-        self._dt           = self.get_parameter('dt').value
-        self._kp_xy        = self.get_parameter('kp_xy').value
-        self._kp_ang       = self.get_parameter('kp_ang').value
-        self._v_max        = self.get_parameter('v_max').value
-        self._w_max        = self.get_parameter('w_max').value
-        self._pos_tol      = self.get_parameter('pos_tol').value
-        self._ang_tol      = self.get_parameter('ang_tol').value
-        self._lat_replan   = self.get_parameter('lat_replan').value
-        self._apf_inf      = self.get_parameter('apf_influence').value
-        self._k_rep        = self.get_parameter('k_rep').value
-        self._emg_dist       = self.get_parameter('emergency_dist').value
+        self._dt             = self.get_parameter('dt').value
+        self._v_max          = self.get_parameter('v_max').value
+        self._lookahead      = self.get_parameter('lookahead').value
+        self._pos_tol        = self.get_parameter('pos_tol').value
+        self._k_rep          = self.get_parameter('k_rep').value
         self._k_rep_dyn      = self.get_parameter('k_rep_dynamic').value
         self._predict_tau    = self.get_parameter('predict_tau').value
+        self._apf_inf        = self.get_parameter('apf_influence').value
+        self._emg_dist       = self.get_parameter('emergency_dist').value
         self._stuck_thr      = self.get_parameter('stuck_threshold').value
         self._stuck_win      = self.get_parameter('stuck_window').value
-        self._goal_wait      = self.get_parameter('goal_wait').value
         self._replan_timeout = self.get_parameter('replan_timeout').value
+        self._goal_wait      = self.get_parameter('goal_wait').value
 
         # ── Durum ─────────────────────────────────────────────────────────────
         self._state             = State.IDLE
-        self._pose              = [0.0, 0.0, 0.0]
-        self._goal              = None
-        self._traj              = None
+        self._pose              = [0.0, 0.0, 0.0]   # [x, y, yaw]
+        self._goal: Optional[Tuple] = None
+        self._path: List[Point] = []
+        self._path_idx          = 0     # monoton ilerleyen waypoint indeksi
         self._obstacles         = []
         self._goal_time         = None
         self._replan_time       = None
         self._stuck_check_pose  = None
         self._stuck_check_time  = None
-        self._pending_traj      = None   # race condition: PLANNING öncesi gelen traj
-        self._pending_traj_time = None
 
         # ── Pub / Sub ─────────────────────────────────────────────────────────
-        self._cmd_pub    = self.create_publisher(Twist, '/cmd_vel',  10)
-        self._replan_pub = self.create_publisher(Empty, '/replan',   10)
+        self._cmd_pub    = self.create_publisher(Twist, '/cmd_vel', 10)
+        self._replan_pub = self.create_publisher(Empty, '/replan',  10)
 
-        self.create_subscription(String,      '/reference_trajectory', self._traj_cb,   _LATCHED_QOS)
-        self.create_subscription(String,      '/obstacles',            self._obs_cb,    10)
-        self.create_subscription(Odometry,    '/odom',                 self._odom_cb,   10)
-        self.create_subscription(PoseStamped, '/goal_pose',            self._goal_cb,   _LATCHED_QOS)
-        self.create_subscription(Empty,       '/goal_cancel',          self._cancel_cb, 10)
+        self.create_subscription(Path,        '/global_path', self._path_cb,   _LATCHED_QOS)
+        self.create_subscription(String,      '/obstacles',   self._obs_cb,    10)
+        self.create_subscription(Odometry,    '/odom',        self._odom_cb,   10)
+        self.create_subscription(PoseStamped, '/goal_pose',   self._goal_cb,   _LATCHED_QOS)
+        self.create_subscription(Empty,       '/goal_cancel', self._cancel_cb, 10)
 
         self.create_timer(self._dt, self._control_loop)
-        self.get_logger().info('NavigatorNode başladı.')
+        self.get_logger().info('NavigatorNode başladı (Pure Pursuit).')
 
-    # ── Callback'ler ─────────────────────────────────────────────────────────
+    # ── Callback'ler ──────────────────────────────────────────────────────────
 
     def _odom_cb(self, msg: Odometry):
         p   = msg.pose.pose
@@ -149,26 +132,22 @@ class NavigatorNode(Node):
         except Exception:
             self._obstacles = []
 
-    def _traj_cb(self, msg: String):
-        try:
-            data = json.loads(msg.data)
-        except Exception as e:
-            self.get_logger().error(f'Trayektori JSON hatası: {e}')
+    def _path_cb(self, msg: Path):
+        if not msg.poses:
             return
-
+        self._path     = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
+        self._path_idx = 0
+        self.get_logger().info(f'Yol alındı: {len(self._path)} nokta')
         if self._state in (State.PLANNING, State.REPLANNING):
-            self._traj = _Trajectory(data)
             self._set_state(State.FOLLOWING)
-        else:
-            # Race condition: PLANNING öncesi geldi — sakla, taze ise kullanılacak
-            self._pending_traj = data
-            self._pending_traj_time = time.time()
 
     def _goal_cb(self, msg: PoseStamped):
         gx  = msg.pose.position.x
         gy  = msg.pose.position.y
         gth = 2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
-        self._goal = (gx, gy, gth)
+        self._goal     = (gx, gy, gth)
+        self._path     = []
+        self._path_idx = 0
         self.get_logger().info(f'Hedef: ({gx:.2f}, {gy:.2f})')
         self._set_state(State.PLANNING)
 
@@ -180,17 +159,18 @@ class NavigatorNode(Node):
     # ── Durum geçişi ──────────────────────────────────────────────────────────
 
     def _set_state(self, new: str):
-        if new != self._state:
-            self.get_logger().info(f'[{self._state}] → [{new}]')
-            self._state = new
-            if new == State.GOAL_REACHED:
-                self._goal_time = time.time()
-            elif new == State.REPLANNING:
-                self._replan_time = time.time()
-                self._replan_pub.publish(Empty())
-            elif new == State.FOLLOWING:
-                self._stuck_check_pose = (self._pose[0], self._pose[1])
-                self._stuck_check_time = time.time()
+        if new == self._state:
+            return
+        self.get_logger().info(f'[{self._state}] → [{new}]')
+        self._state = new
+        if new == State.GOAL_REACHED:
+            self._goal_time = time.time()
+        elif new == State.REPLANNING:
+            self._replan_time = time.time()
+            self._replan_pub.publish(Empty())
+        elif new == State.FOLLOWING:
+            self._stuck_check_pose = (self._pose[0], self._pose[1])
+            self._stuck_check_time = time.time()
 
     # ── Ana kontrol döngüsü (20 Hz) ───────────────────────────────────────────
 
@@ -202,25 +182,19 @@ class NavigatorNode(Node):
 
         elif s == State.PLANNING:
             self._stop()
-            # Bekleyen taze trayektori varsa hemen uygula (race condition fix)
-            if (self._pending_traj is not None and
-                    self._pending_traj_time is not None and
-                    time.time() - self._pending_traj_time < 3.0):
-                try:
-                    self._traj = _Trajectory(self._pending_traj)
-                    self._pending_traj = None
-                    self._set_state(State.FOLLOWING)
-                except Exception as e:
-                    self.get_logger().error(f'Bekleyen trayektori hatası: {e}')
+            # Path zaten geldi mi? (race condition: path, PLANNING'den önce gelebilir)
+            if self._path:
+                self._set_state(State.FOLLOWING)
 
         elif s == State.REPLANNING:
             self._stop()
-            if (self._replan_time is not None and
-                    time.time() - self._replan_time > self._replan_timeout):
+            if self._path:   # yeni path geldi
+                self._set_state(State.FOLLOWING)
+            elif (self._replan_time is not None and
+                  time.time() - self._replan_time > self._replan_timeout):
                 self.get_logger().warn(
-                    f'REPLANNING {self._replan_timeout:.0f}s aşıldı → IDLE reset'
+                    f'REPLANNING {self._replan_timeout:.0f}s aşıldı → IDLE'
                 )
-                self._traj = None
                 self._set_state(State.IDLE)
 
         elif s == State.FOLLOWING:
@@ -231,34 +205,24 @@ class NavigatorNode(Node):
             if time.time() - self._goal_time >= self._goal_wait:
                 self._set_state(State.IDLE)
 
-    # ── FOLLOWING ────────────────────────────────────────────────────────────
+    # ── Pure Pursuit takip ────────────────────────────────────────────────────
 
     def _do_following(self):
-        if self._traj is None or self._goal is None:
+        if not self._path or self._goal is None:
             self._stop()
             return
 
-        t           = min(self._traj.elapsed, self._traj.total_time)
-        rx, ry, rth = self._traj.eval(t)
-        vx_ff, vy_ff, wz_ff = self._traj.eval_dot(t)
-        px, py, pth = self._pose
-        gx, gy, gth = self._goal
+        px, py, _ = self._pose
+        gx, gy, _ = self._goal
 
         # Hedefe varış
-        if (math.hypot(px - gx, py - gy) < self._pos_tol and
-                abs(self._angle_diff(pth, gth)) < self._ang_tol):
+        if math.hypot(px - gx, py - gy) < self._pos_tol:
+            self.get_logger().info(f'Hedefe ulaşıldı ({px:.2f},{py:.2f})')
             self._set_state(State.GOAL_REACHED)
             self._stop()
             return
 
-        # Lateral sapma → REPLANNING
-        if math.hypot(px - rx, py - ry) > self._lat_replan:
-            self.get_logger().warn(f'Lateral sapma ({math.hypot(px-rx,py-ry):.2f}m) → REPLANNING')
-            self._set_state(State.REPLANNING)
-            self._stop()
-            return
-
-        # ── Tıkanma tespiti ───────────────────────────────────────────────────
+        # Tıkanma tespiti
         now = time.time()
         if (self._stuck_check_time is not None and
                 now - self._stuck_check_time >= self._stuck_win):
@@ -266,7 +230,7 @@ class NavigatorNode(Node):
                                py - self._stuck_check_pose[1])
             if moved < self._stuck_thr:
                 self.get_logger().warn(
-                    f'Robot tıkandı! {self._stuck_win:.0f}s içinde {moved:.3f}m → REPLANNING'
+                    f'Tıkandı ({self._stuck_win:.0f}s içinde {moved:.3f}m) → REPLANNING'
                 )
                 self._stop()
                 self._set_state(State.REPLANNING)
@@ -274,88 +238,159 @@ class NavigatorNode(Node):
             self._stuck_check_pose = (px, py)
             self._stuck_check_time = now
 
-        # ── Dinamik engel kaçınma (tahminli APF) + statik APF ────────────────
-        rep = self._apf_rep(px, py)
-        rep_dyn = self._apf_rep_dynamic(px, py)
-        nearest = self._nearest_obs_dist()
+        # En yakın engel mesafesi
+        nearest_dist = self._nearest_obs_dist(px, py)
 
-        if nearest < self._emg_dist:
+        # Acil dur
+        if nearest_dist < self._emg_dist:
             emg = self._apf_emergency(px, py)
             self.get_logger().warn(
-                f'Acil kaçış! Engel {nearest:.2f}m → ({emg[0]:.2f},{emg[1]:.2f})'
+                f'Acil! Engel {nearest_dist:.2f}m — kaçış ({emg[0]:.2f},{emg[1]:.2f})'
             )
             self._publish_vel(emg[0], emg[1], 0.0)
             self._set_state(State.REPLANNING)
             return
 
-        # FF + P + statik APF + dinamik APF
-        vx = vx_ff + self._kp_xy  * (rx - px) + rep[0] + rep_dyn[0]
-        vy = vy_ff + self._kp_xy  * (ry - py) + rep[1] + rep_dyn[1]
-        wz = wz_ff + self._kp_ang * self._angle_diff(pth, rth)
+        # ── Pure Pursuit: havuç noktası ───────────────────────────────────────
+        carrot = self._find_carrot(px, py)
+        dx = carrot[0] - px
+        dy = carrot[1] - py
+        dist_carrot = math.hypot(dx, dy)
+        if dist_carrot < 1e-3:
+            self._stop()
+            return
 
+        # Regulated speed: engele yaklaştıkça yavaşla
+        if nearest_dist < self._apf_inf:
+            obs_ratio = (nearest_dist - self._emg_dist) / (self._apf_inf - self._emg_dist)
+            speed = self._v_max * max(0.20, min(1.0, obs_ratio))
+        else:
+            speed = self._v_max
+
+        # Son waypoint'e yaklaşırken yavaşla (hedef yakını)
+        dist_goal = math.hypot(px - gx, py - gy)
+        if dist_goal < self._lookahead * 2:
+            speed *= max(0.30, dist_goal / (self._lookahead * 2))
+
+        # Temel hız vektörü
+        vx = speed * dx / dist_carrot
+        vy = speed * dy / dist_carrot
+
+        # APF süperpozisyonu (hafif statik + güçlü dinamik)
+        rep_s = self._apf_static(px, py)
+        rep_d = self._apf_dynamic(px, py)
+        vx += rep_s[0] + rep_d[0]
+        vy += rep_s[1] + rep_d[1]
+
+        # Hız sınırlama
         v = math.hypot(vx, vy)
         if v > self._v_max:
             vx *= self._v_max / v
             vy *= self._v_max / v
 
-        wz = max(-self._w_max, min(self._w_max, wz))
+        self._publish_vel(vx, vy, 0.0)
 
-        self._publish_vel(vx, vy, wz)
+    # ── Pure Pursuit: havuç noktası ───────────────────────────────────────────
 
-    # ── APF: PythonRobotics gradyan formülü ──────────────────────────────────
-
-    def _apf_rep(self, px: float, py: float) -> np.ndarray:
+    def _find_carrot(self, px: float, py: float) -> Point:
         """
-        U_rep = 0.5 * k * (1/d - 1/d0)²
-        F_rep = -∇U_rep = k * (1/d - 1/d0) / d² * (pos - obs) / d_center
-        Ref: AtsushiSakai/PythonRobotics — potential_field_planning.py
+        Path üzerinde lookahead mesafesindeki noktayı bul.
+        _path_idx monoton ilerler — geri dönmez.
         """
+        path = self._path
+        n    = len(path)
+        L    = self._lookahead
+
+        # Geçilen waypoint'leri atla
+        while (self._path_idx < n - 1 and
+               math.hypot(path[self._path_idx][0] - px,
+                          path[self._path_idx][1] - py) < L * 0.5):
+            self._path_idx += 1
+
+        # Lookahead mesafesinde segment kesişimi
+        for i in range(self._path_idx, n - 1):
+            pt = self._circle_segment_intersect(
+                px, py, L,
+                path[i][0], path[i][1],
+                path[i+1][0], path[i+1][1],
+            )
+            if pt is not None:
+                return pt
+
+        return path[-1]   # yol bitti → son noktaya git
+
+    @staticmethod
+    def _circle_segment_intersect(
+        cx: float, cy: float, r: float,
+        ax: float, ay: float, bx: float, by: float,
+    ) -> Optional[Point]:
+        """[A,B] segmenti ile r yarıçaplı çemberin ileri kesişimi."""
+        dx, dy = bx - ax, by - ay
+        fx, fy = ax - cx, ay - cy
+        a = dx*dx + dy*dy
+        if a < 1e-12:
+            return None
+        b    = 2.0*(fx*dx + fy*dy)
+        c    = fx*fx + fy*fy - r*r
+        disc = b*b - 4.0*a*c
+        if disc < 0:
+            return None
+        sq = math.sqrt(disc)
+        t2 = (-b + sq) / (2.0*a)
+        t1 = (-b - sq) / (2.0*a)
+        for t in (t2, t1):
+            if 0.0 <= t <= 1.0:
+                return (ax + t*dx, ay + t*dy)
+        return None
+
+    # ── APF ───────────────────────────────────────────────────────────────────
+
+    def _apf_static(self, px: float, py: float) -> np.ndarray:
+        """Statik engeller için hafif itme — sadece saptırır, yönü bozmaz."""
         rep = np.zeros(2)
         for obs in self._obstacles:
+            if obs.get('dynamic', False):
+                continue
             ox, oy   = obs['x'], obs['y']
             d_center = math.hypot(px - ox, py - oy)
             if d_center < 1e-3:
                 continue
-            d_surface = max(d_center - obs['r'], 0.01)
-            if d_surface >= self._apf_inf:
+            d_surf = max(d_center - obs['r'], 0.01)
+            if d_surf >= self._apf_inf:
                 continue
-            factor = self._k_rep * (1.0 / d_surface - 1.0 / self._apf_inf) / (d_surface ** 2)
-            rep += factor * np.array([px - ox, py - oy]) / d_center
+            factor = self._k_rep * (1.0/d_surf - 1.0/self._apf_inf) / d_surf**2
+            rep   += factor * np.array([px - ox, py - oy]) / d_center
         return rep
 
-    def _apf_rep_dynamic(self, px: float, py: float) -> np.ndarray:
-        """
-        Dinamik engeller için tahminli APF.
-        Engelin tau saniye sonraki tahmini konumundan kaç — statikten çok daha güçlü.
-        """
+    def _apf_dynamic(self, px: float, py: float) -> np.ndarray:
+        """Dinamik engeller için güçlü tahminli itme — tau sonraki konumdan kaç."""
         rep = np.zeros(2)
         for obs in self._obstacles:
             if not obs.get('dynamic', False):
                 continue
-            # Tahminli konum: c_pred = c + v * tau
             ox = obs['x'] + obs.get('vx', 0.0) * self._predict_tau
             oy = obs['y'] + obs.get('vy', 0.0) * self._predict_tau
             d_center = math.hypot(px - ox, py - oy)
             if d_center < 1e-3:
                 continue
-            d_surface = max(d_center - obs['r'], 0.01)
-            if d_surface >= self._apf_inf:
+            d_surf = max(d_center - obs['r'], 0.01)
+            if d_surf >= self._apf_inf:
                 continue
-            factor = self._k_rep_dyn * (1.0 / d_surface - 1.0 / self._apf_inf) / (d_surface ** 2)
-            rep += factor * np.array([px - ox, py - oy]) / d_center
+            factor = self._k_rep_dyn * (1.0/d_surf - 1.0/self._apf_inf) / d_surf**2
+            rep   += factor * np.array([px - ox, py - oy]) / d_center
         return rep
 
     def _apf_emergency(self, px: float, py: float) -> np.ndarray:
-        """Acil durum: normalize edilmiş v_max hızında uzaklaş."""
+        """Acil: normalize v_max hızında tüm yakın engellerden kaç."""
         push = np.zeros(2)
         for obs in self._obstacles:
             ox, oy   = obs['x'], obs['y']
             d_center = math.hypot(px - ox, py - oy)
             if d_center < 1e-3:
                 continue
-            d_surface = max(d_center - obs['r'], 0.01)
-            if d_surface < self._emg_dist:
-                push += np.array([px - ox, py - oy]) / d_center / d_surface
+            d_surf = max(d_center - obs['r'], 0.01)
+            if d_surf < self._emg_dist:
+                push += np.array([px - ox, py - oy]) / (d_center * d_surf)
         norm = np.linalg.norm(push)
         if norm < 1e-3:
             return np.zeros(2)
@@ -363,21 +398,13 @@ class NavigatorNode(Node):
 
     # ── Yardımcılar ───────────────────────────────────────────────────────────
 
-    def _nearest_obs_dist(self) -> float:
+    def _nearest_obs_dist(self, px: float, py: float) -> float:
         if not self._obstacles:
             return float('inf')
-        px, py = self._pose[0], self._pose[1]
         return min(
             max(math.hypot(px - o['x'], py - o['y']) - o['r'], 0.0)
             for o in self._obstacles
         )
-
-    @staticmethod
-    def _angle_diff(a: float, b: float) -> float:
-        d = b - a
-        while d >  math.pi: d -= 2 * math.pi
-        while d < -math.pi: d += 2 * math.pi
-        return d
 
     def _publish_vel(self, vx: float, vy: float, wz: float):
         msg = Twist()
