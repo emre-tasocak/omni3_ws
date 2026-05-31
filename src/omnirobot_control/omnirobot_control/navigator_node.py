@@ -84,9 +84,13 @@ class NavigatorNode(Node):
         self.declare_parameter('lat_replan',    0.80)
         self.declare_parameter('apf_influence', 0.80)   # m — APF etki mesafesi (yüzey)
         self.declare_parameter('k_rep',         0.05)   # APF itme sabiti
-        self.declare_parameter('emergency_dist',0.30)   # m — acil itme + REPLANNING
-        self.declare_parameter('goal_wait',     2.0)
-        self.declare_parameter('replan_timeout',5.0)   # s — REPLANNING → IDLE reset
+        self.declare_parameter('emergency_dist',   0.30)  # m — statik engel acil itme
+        self.declare_parameter('k_rep_dynamic',    0.40)  # dinamik engel APF katsayısı (statikten büyük)
+        self.declare_parameter('predict_tau',      0.8)   # s — dinamik engel tahmin ufku
+        self.declare_parameter('stuck_threshold',  0.05)  # m — tıkanma hareket eşiği
+        self.declare_parameter('stuck_window',     2.5)   # s — tıkanma kontrol penceresi
+        self.declare_parameter('goal_wait',        2.0)
+        self.declare_parameter('replan_timeout',   5.0)   # s — REPLANNING → IDLE reset
 
         self._dt           = self.get_parameter('dt').value
         self._kp_xy        = self.get_parameter('kp_xy').value
@@ -98,18 +102,24 @@ class NavigatorNode(Node):
         self._lat_replan   = self.get_parameter('lat_replan').value
         self._apf_inf      = self.get_parameter('apf_influence').value
         self._k_rep        = self.get_parameter('k_rep').value
-        self._emg_dist     = self.get_parameter('emergency_dist').value
-        self._goal_wait    = self.get_parameter('goal_wait').value
+        self._emg_dist       = self.get_parameter('emergency_dist').value
+        self._k_rep_dyn      = self.get_parameter('k_rep_dynamic').value
+        self._predict_tau    = self.get_parameter('predict_tau').value
+        self._stuck_thr      = self.get_parameter('stuck_threshold').value
+        self._stuck_win      = self.get_parameter('stuck_window').value
+        self._goal_wait      = self.get_parameter('goal_wait').value
         self._replan_timeout = self.get_parameter('replan_timeout').value
 
         # ── Durum ─────────────────────────────────────────────────────────────
-        self._state       = State.IDLE
-        self._pose        = [0.0, 0.0, 0.0]
-        self._goal        = None
-        self._traj        = None
-        self._obstacles   = []
-        self._goal_time   = None
-        self._replan_time = None   # REPLANNING başlangıç zamanı
+        self._state             = State.IDLE
+        self._pose              = [0.0, 0.0, 0.0]
+        self._goal              = None
+        self._traj              = None
+        self._obstacles         = []
+        self._goal_time         = None
+        self._replan_time       = None
+        self._stuck_check_pose  = None   # tıkanma tespiti referans konumu
+        self._stuck_check_time  = None
 
         # ── Pub / Sub ─────────────────────────────────────────────────────────
         self._cmd_pub    = self.create_publisher(Twist, '/cmd_vel',  10)
@@ -170,6 +180,9 @@ class NavigatorNode(Node):
             elif new == State.REPLANNING:
                 self._replan_time = time.time()
                 self._replan_pub.publish(Empty())
+            elif new == State.FOLLOWING:
+                self._stuck_check_pose = (self._pose[0], self._pose[1])
+                self._stuck_check_time = time.time()
 
     # ── Ana kontrol döngüsü (20 Hz) ───────────────────────────────────────────
 
@@ -227,12 +240,28 @@ class NavigatorNode(Node):
             self._stop()
             return
 
-        # ── PythonRobotics APF (F = k*(1/d - 1/d0)/d² * yön) ────────────────
+        # ── Tıkanma tespiti ───────────────────────────────────────────────────
+        now = time.time()
+        if (self._stuck_check_time is not None and
+                now - self._stuck_check_time >= self._stuck_win):
+            moved = math.hypot(px - self._stuck_check_pose[0],
+                               py - self._stuck_check_pose[1])
+            if moved < self._stuck_thr:
+                self.get_logger().warn(
+                    f'Robot tıkandı! {self._stuck_win:.0f}s içinde {moved:.3f}m → REPLANNING'
+                )
+                self._stop()
+                self._set_state(State.REPLANNING)
+                return
+            self._stuck_check_pose = (px, py)
+            self._stuck_check_time = now
+
+        # ── Dinamik engel kaçınma (tahminli APF) + statik APF ────────────────
         rep = self._apf_rep(px, py)
+        rep_dyn = self._apf_rep_dynamic(px, py)
         nearest = self._nearest_obs_dist()
 
         if nearest < self._emg_dist:
-            # Acil durum: güçlü sabit hızlı itme + REPLANNING
             emg = self._apf_emergency(px, py)
             self.get_logger().warn(
                 f'Acil kaçış! Engel {nearest:.2f}m → ({emg[0]:.2f},{emg[1]:.2f})'
@@ -241,9 +270,9 @@ class NavigatorNode(Node):
             self._set_state(State.REPLANNING)
             return
 
-        # FF + P + APF
-        vx = vx_ff + self._kp_xy  * (rx - px) + rep[0]
-        vy = vy_ff + self._kp_xy  * (ry - py) + rep[1]
+        # FF + P + statik APF + dinamik APF
+        vx = vx_ff + self._kp_xy  * (rx - px) + rep[0] + rep_dyn[0]
+        vy = vy_ff + self._kp_xy  * (ry - py) + rep[1] + rep_dyn[1]
         wz = wz_ff + self._kp_ang * self._angle_diff(pth, rth)
 
         v = math.hypot(vx, vy)
@@ -273,6 +302,28 @@ class NavigatorNode(Node):
             if d_surface >= self._apf_inf:
                 continue
             factor = self._k_rep * (1.0 / d_surface - 1.0 / self._apf_inf) / (d_surface ** 2)
+            rep += factor * np.array([px - ox, py - oy]) / d_center
+        return rep
+
+    def _apf_rep_dynamic(self, px: float, py: float) -> np.ndarray:
+        """
+        Dinamik engeller için tahminli APF.
+        Engelin tau saniye sonraki tahmini konumundan kaç — statikten çok daha güçlü.
+        """
+        rep = np.zeros(2)
+        for obs in self._obstacles:
+            if not obs.get('dynamic', False):
+                continue
+            # Tahminli konum: c_pred = c + v * tau
+            ox = obs['x'] + obs.get('vx', 0.0) * self._predict_tau
+            oy = obs['y'] + obs.get('vy', 0.0) * self._predict_tau
+            d_center = math.hypot(px - ox, py - oy)
+            if d_center < 1e-3:
+                continue
+            d_surface = max(d_center - obs['r'], 0.01)
+            if d_surface >= self._apf_inf:
+                continue
+            factor = self._k_rep_dyn * (1.0 / d_surface - 1.0 / self._apf_inf) / (d_surface ** 2)
             rep += factor * np.array([px - ox, py - oy]) / d_center
         return rep
 
