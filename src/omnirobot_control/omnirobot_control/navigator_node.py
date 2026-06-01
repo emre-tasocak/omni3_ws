@@ -59,6 +59,7 @@ class NavigatorNode(Node):
         self.declare_parameter('dt',              0.05)
         self.declare_parameter('v_max',           0.35)
         self.declare_parameter('lookahead',       0.50)
+        self.declare_parameter('lookahead_min',   0.25)   # m  — engel yakınken min carrot ufku
         self.declare_parameter('pos_tol',         0.08)
         self.declare_parameter('robot_radius',    0.27)
         self.declare_parameter('estop_margin',    0.05)   # m  — ESTOP = robot_r + bu değer
@@ -82,7 +83,8 @@ class NavigatorNode(Node):
 
         self._dt          = self.get_parameter('dt').value
         self._v_max       = self.get_parameter('v_max').value
-        self._lookahead   = self.get_parameter('lookahead').value
+        self._lookahead     = self.get_parameter('lookahead').value
+        self._lookahead_min = self.get_parameter('lookahead_min').value
         self._pos_tol     = self.get_parameter('pos_tol').value
         self._robot_r     = self.get_parameter('robot_radius').value
         self._estop_m     = self.get_parameter('estop_margin').value
@@ -300,10 +302,18 @@ class NavigatorNode(Node):
         # dinamik engel kontrolü (perception pipeline'dan)
         v_limit = self._speed_limit(nearest_raw, px, py)
 
+        # Adaptif lookahead: engele yakınken carrot ufku küçülür → daha az yay, az açı kayması
+        nearest_for_la = max(nearest_raw - self._robot_r, 0.0)
+        if nearest_for_la < self._d_safe:
+            la_ratio   = max(0.0, nearest_for_la / self._d_safe)
+            lookahead  = self._lookahead_min + la_ratio * (self._lookahead - self._lookahead_min)
+        else:
+            lookahead  = self._lookahead
+
         # Pure Pursuit carrot noktası (world frame) → body frame hedef açısı
-        carrot = self._find_carrot(px, py)
+        carrot = self._find_carrot(px, py, lookahead)
         dist_goal = math.hypot(px - gx, py - gy)
-        wx, wy = (gx, gy) if dist_goal < self._lookahead * 1.5 else carrot
+        wx, wy = (gx, gy) if dist_goal < lookahead * 1.5 else carrot
 
         # World frame hedef → body frame açı (yaw'a göre döndür)
         dx_w = wx - px; dy_w = wy - py
@@ -465,10 +475,10 @@ class NavigatorNode(Node):
 
     # ── Pure Pursuit carrot ───────────────────────────────────────────────────
 
-    def _find_carrot(self, px: float, py: float) -> Point:
+    def _find_carrot(self, px: float, py: float, lookahead: float = None) -> Point:
         path = self._path
         n    = len(path)
-        L    = self._lookahead
+        L    = lookahead if lookahead is not None else self._lookahead
 
         while (self._path_idx < n - 1 and
                math.hypot(path[self._path_idx][0] - px,
