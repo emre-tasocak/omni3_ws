@@ -70,7 +70,7 @@ class NavigatorNode(Node):
         self.declare_parameter('lookahead',       0.50)   # m  — Pure Pursuit ufku
         self.declare_parameter('pos_tol',         0.08)   # m  — varış toleransı
         self.declare_parameter('robot_radius',    0.27)   # m  — fiziksel yarıçap (hız regülasyonu)
-        self.declare_parameter('dwa_clearance',   0.13)   # m  — DWA min yüzey boşluğu (gövde marjı)
+        self.declare_parameter('dwa_clearance',   0.30)   # m  — DWA min yüzey boşluğu (>= robot_radius)
         self.declare_parameter('d_safe',          0.45)   # m  — hız azaltma başlangıç mesafesi
         # DWA
         self.declare_parameter('dwa_alpha',       0.60)   # heading ağırlığı
@@ -285,10 +285,11 @@ class NavigatorNode(Node):
         else:
             tx, ty = carrot
 
-        # Hız üst sınırı: SADECE dinamik engellerle azaltılır (insan boyutunda, hareket eden)
-        # Statik engeller DWA'nın geometrik çevreletiyle geçilir — hızı düşürmez
-        if nearest_dyn < self._d_safe:
-            ratio   = max(0.25, (nearest_dyn - self._robot_r) /
+        # Hız üst sınırı: tüm engellere göre azaltılır
+        # nearest_dyn yakınsa daha agresif yavaşlama, yoksa nearest_all kullanılır
+        nearest_for_speed = min(nearest_all, nearest_dyn)
+        if nearest_for_speed < self._d_safe:
+            ratio   = max(0.20, (nearest_for_speed - self._robot_r) /
                          max(self._d_safe - self._robot_r, 0.01))
             v_limit = self._v_max * ratio
         else:

@@ -99,38 +99,58 @@ class YDLidarX2:
     
     def _scan(self):
         """ Core routine to retrieve and decode lidar data.
-            Availaility flag is set after each successful decoding process. """
+            Rotasyon tamamlanınca availability flag set edilir (chunk bazlı değil). """
         self._scan_is_active = True
+        # Rotasyon boyunca biriken ölçüm sayacı — rotasyon bitince sıfırlanır
+        rot_pnt = np.zeros(360, dtype=np.uint32)
+        prev_end_angle = -1.0
+        rot_error_cnt  = 0
+
         while self._is_scanning:
             # Retrieve data
             data = self._ser.read(self._chunk_size).split(b"\xaa\x55")
             if self._last_chunk is not None:
                 data[0] = self._last_chunk + data[0]
             self._last_chunk = data.pop()
-            # Clear array for new scan
-            distances_pnt = np.array([0 for _ in range(360)], dtype=np.uint32)
-            error_cnt = 0
+
             # Decode data
             for idx, d in enumerate(data):
-                # Reasonable length of the data slice?
                 l = len(d)
                 if l < 10:
-                    error_cnt += 1
+                    rot_error_cnt += 1
                     if self._debug_level > 0:
                         print("Idx:", idx, "ignored - len:", len(d))
                     continue
-                # Get sample count and start and end angle
                 sample_cnt = d[1]
-                # Do we have any samples?
                 if sample_cnt == 0:
-                    error_cnt += 1
+                    rot_error_cnt += 1
                     if self._debug_level > 0:
                         print("Idx:", idx, "ignored - sample_cnt: 0")
                     continue
-                # Get start and end angle
+
                 start_angle = ((d[2] + 256 * d[3]) >> 1) / 64
-                end_angle = ((d[4] + 256 * d[5]) >> 1) / 64
- 
+                end_angle   = ((d[4] + 256 * d[5]) >> 1) / 64
+
+                # Rotasyon sınırı tespiti: start_angle önceki end_angle'dan belirgin küçükse
+                # yeni bir tur başladı → birikmiş veriyi yayınla, sıfırla
+                if prev_end_angle >= 0.0 and start_angle < prev_end_angle - 30.0:
+                    new_result = np.empty(360, dtype=np.int32)
+                    for a in range(360):
+                        if rot_pnt[a] == 0:
+                            new_result[a] = self._out_of_range
+                        else:
+                            new_result[a] = int(
+                                self._distances[a][:rot_pnt[a]].mean()
+                            )
+                    with self._lock:
+                        self._result[:]    = new_result
+                        self._error_cnt    = rot_error_cnt
+                        self._availability_flag = True
+                    rot_pnt[:]    = 0
+                    rot_error_cnt = 0
+
+                prev_end_angle = end_angle
+
                 # Start data block
                 if sample_cnt == 1:
                     dist = round((d[8] + 256*d[9]) / 4)
@@ -141,25 +161,25 @@ class YDLidarX2:
                         angle = round(start_angle + self._corrections[dist])
                         if angle < 0: angle += 360
                         if angle >= 360: angle -= 360
-                        self._distances[angle][distances_pnt[angle]] = dist
-                        if distances_pnt[angle] < self._max_data - 1:
-                            distances_pnt[angle] += 1
+                        self._distances[angle][rot_pnt[angle]] = dist
+                        if rot_pnt[angle] < self._max_data - 1:
+                            rot_pnt[angle] += 1
                         else:
                             if self._debug_level > 0:
                                 print("Idx:", idx, " - pointer overflow")
-                            error_cnt += 1
+                            rot_error_cnt += 1
 
                 # Cloud data block
                 else:
                     if start_angle == end_angle:
                         if self._debug_level > 0:
                             print("Idx:", idx, "ignored - start angle equals end angle for cloud package")
-                        error_cnt += 1
+                        rot_error_cnt += 1
                         continue
                     if l != 8 + 2 * sample_cnt:
                         if self._debug_level > 0:
                             print("Idx:", idx, "ignored - len does not match sample count - len:", l, " - sample_cnt:", sample_cnt)
-                        error_cnt += 1
+                        rot_error_cnt += 1
                         continue
                     if self._debug_level > 1:
                         print("Cloud package: angle:", start_angle, "-", end_angle)
@@ -175,28 +195,18 @@ class YDLidarX2:
                             angle = round(start_angle + self._corrections[dist])
                             if angle < 0: angle += 360
                             if angle >= 360: angle -= 360
-                            self._distances[angle][distances_pnt[angle]] = dist
-                            if distances_pnt[angle] < self._max_data - 1:
-                                distances_pnt[angle] += 1
+                            self._distances[angle][rot_pnt[angle]] = dist
+                            if rot_pnt[angle] < self._max_data - 1:
+                                rot_pnt[angle] += 1
                             else:
                                 if self._debug_level > 0:
                                     print("Idx:", idx, " - pointer overflow")
-                                error_cnt += 1
+                                rot_error_cnt += 1
                         start_angle += step_angle
                         if start_angle >= 360: start_angle -= 360
                         pnt += 2
-            # calculate result
-            if self._debug_level > 0 and error_cnt > 0:
-                print("Error cnt:", error_cnt)
-            
-            for angle in range(360):
-                if distances_pnt[angle] == 0:
-                    self._result[angle] = self._out_of_range
-                else:
-                    self._result[angle] = self._distances[angle][:distances_pnt[angle]].mean()
-            self._error_cnt = error_cnt
-            self._availability_flag = True
-        # end of decoding loop        
+
+        # end of decoding loop
         self._scan_is_active = False
         
         
