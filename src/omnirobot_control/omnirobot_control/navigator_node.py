@@ -343,11 +343,13 @@ class NavigatorNode(Node):
           r       — engel yarıçapı
           vbx,vby — body frame'de hız (dünya hızından yaw ile döndürülür)
         """
-        if not self._obstacles:
+        # Sadece dinamik (hareketli) engeller — statik engeller scan_pts ile zaten kapsamda
+        dyn = [o for o in self._obstacles if o.get('dynamic', False)]
+        if not dyn:
             return []
         result = []
         c, s = math.cos(yaw), math.sin(yaw)
-        for o in self._obstacles:
+        for o in dyn:
             # World → body frame konum dönüşümü
             dx_w = o['x'] - px; dy_w = o['y'] - py
             bx =  c * dx_w + s * dy_w
@@ -397,6 +399,21 @@ class NavigatorNode(Node):
             ratio   = max(0.20, (nearest - self._robot_r) /
                          max(self._d_safe - self._robot_r, 0.01))
             v_limit = self._v_max * ratio
+
+        # ── İleri yön (±45°) engel kontrolü: ayrıca yavaşla ─────────────────
+        # Omnidirectional nearest yeterince erken reaksiyon veremiyor.
+        # İleri yönde yakın engel varsa speed daha agresif kısılır.
+        if self._scan_ranges is not None and self._scan_angles is not None:
+            ang  = self._scan_angles
+            rng  = self._scan_ranges
+            fwd  = np.abs(np.angle(np.exp(1j * ang))) < math.radians(45)
+            fwd_rng = rng[fwd & np.isfinite(rng) & (rng < self._max_clear * 2.5)]
+            if len(fwd_rng):
+                nf = max(float(fwd_rng.min()) - self._robot_r, 0.0)
+                fwd_thresh = self._d_safe * 1.8
+                if nf < fwd_thresh:
+                    fwd_ratio = max(0.15, nf / fwd_thresh)
+                    v_limit   = min(v_limit, self._v_max * fwd_ratio)
 
         # Hedefe yaklaşınca yavaşla
         if self._goal:
@@ -449,6 +466,23 @@ class NavigatorNode(Node):
             dx = traj_x[:, :, None] - sx[None, None, :]
             dy = traj_y[:, :, None] - sy[None, None, :]
             min_clr = np.sqrt(dx**2 + dy**2).min(axis=(1, 2))
+
+            # ── Far-horizon: yörünge ötesindeki engelleri de hesaba kat ────────
+            # Aday yönde (±15° koni) en yakın scan — yörüngeden uzak ama
+            # yeterince yakın engeller min_clr'a yansıtılır.
+            ang_pts  = np.arctan2(sy, sx)                                # (Npts,)
+            dist_pts = np.hypot(sx, sy)                                  # (Npts,)
+            ang_diff_fh = np.abs(np.angle(
+                np.exp(1j * (A_m[:, None] - ang_pts[None, :]))
+            ))                                                            # (N, Npts)
+            dist_coned  = np.where(ang_diff_fh < math.radians(15),
+                                   dist_pts[None, :], np.inf)            # (N, Npts)
+            nearest_cone = dist_coned.min(axis=1)                        # (N,)
+            max_reach    = S_m * self._sim_time                          # (N,)
+            gap          = nearest_cone - max_reach                      # (N,)
+            # Engel yörüngeden öteye geçti ama tehlike mesafesindeyse sınırla
+            fh_mask = (nearest_cone > max_reach) & (gap < self._dwa_clr + 0.40)
+            min_clr = np.where(fh_mask, np.minimum(min_clr, gap), min_clr)
         else:
             min_clr = np.full(N, self._max_clear)
 
