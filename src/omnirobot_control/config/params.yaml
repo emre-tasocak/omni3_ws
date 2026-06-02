@@ -63,15 +63,15 @@ trajectory_smoother_node:
 navigator_node:
   ros__parameters:
     dt:              0.05        # s  — kontrol döngüsü (20 Hz)
-    v_max:           0.45        # m/s — güvenli maksimum hız (lidar 8-10 Hz ile uyumlu)
+    v_max:           0.28        # m/s — azaltıldı: lidar 10Hz @ 0.28m/s → 0.028m/döngü
     lookahead:       0.70        # m  — Pure Pursuit carrot ufku (normal mod)
     pos_tol:         0.10        # m  — varış toleransı
     robot_radius:    0.27        # m  — fiziksel yarıçap
-    dwa_clearance:   0.30        # m  — DWA min yüzey boşluğu (>= robot_radius zorunlu)
+    dwa_clearance:   0.42        # m  — robot_r(0.27)+0.15m margin: 0.30m yüzey boşluğu
     d_safe:          0.55        # m  — bu mesafeye girince hız azaltılır
     # DWA parametreleri
-    dwa_alpha:       0.55        # heading puanı ağırlığı
-    dwa_beta:        0.35        # clearance puanı ağırlığı
+    dwa_alpha:       0.40        # heading puanı ağırlığı (azaltıldı: engel kaçınma öncelikli)
+    dwa_beta:        0.50        # clearance puanı ağırlığı (artırıldı)
     dwa_gamma:       0.10        # hız puanı ağırlığı
     dwa_n_dir:       36          # yön örnekleme (her 10°)
     dwa_n_speed:     8           # hız örnekleme kademesi
