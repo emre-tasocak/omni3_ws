@@ -62,7 +62,7 @@ class NavigatorNode(Node):
         self.declare_parameter('lookahead_min',   0.25)   # m  — engel yakınken min carrot ufku
         self.declare_parameter('pos_tol',         0.08)
         self.declare_parameter('robot_radius',    0.27)
-        self.declare_parameter('estop_margin',    0.05)   # m  — ESTOP = robot_r + bu değer
+        self.declare_parameter('estop_margin',    0.23)   # m  — ESTOP = robot_r + bu değer → 0.50m
         self.declare_parameter('dwa_clearance',   0.30)   # m  — robot_r'den büyük olmalı
         self.declare_parameter('d_safe',          0.45)
         self.declare_parameter('scan_step',       3)      # her N ışından 1'i kullan (hız)
@@ -319,8 +319,12 @@ class NavigatorNode(Node):
         dx_w = wx - px; dy_w = wy - py
         target_angle_body = math.atan2(dy_w, dx_w) - yaw
 
+        # Dinamik engelleri body frame'e dönüştür (hız tahmini için)
+        dyn_obs_body = self._dynamic_obs_body(px, py, yaw)
+
         # DWA: body frame'de çalış
-        vx_b, vy_b = self._dwa(target_angle_body, v_limit, scan_pts, nearest_raw)
+        vx_b, vy_b = self._dwa(target_angle_body, v_limit, scan_pts, nearest_raw,
+                                dyn_obs_body)
 
         # Body frame → world frame dönüşümü
         c, s = math.cos(yaw), math.sin(yaw)
@@ -328,6 +332,32 @@ class NavigatorNode(Node):
         vy_w = s * vx_b + c * vy_b
 
         self._publish_vel(vx_w, vy_w, 0.0)
+
+    # ── Dinamik engeller — body frame + hız ──────────────────────────────────
+
+    def _dynamic_obs_body(self, px: float, py: float, yaw: float):
+        """
+        /obstacles'dan gelen dinamik engelleri robot body frame'e çevir.
+        Döndürür: list of (bx, by, r, vbx, vby)
+          bx, by  — body frame'de mevcut konum
+          r       — engel yarıçapı
+          vbx,vby — body frame'de hız (dünya hızından yaw ile döndürülür)
+        """
+        if not self._obstacles:
+            return []
+        result = []
+        c, s = math.cos(yaw), math.sin(yaw)
+        for o in self._obstacles:
+            # World → body frame konum dönüşümü
+            dx_w = o['x'] - px; dy_w = o['y'] - py
+            bx =  c * dx_w + s * dy_w
+            by = -s * dx_w + c * dy_w
+            # World → body frame hız dönüşümü
+            vx_w = o.get('vx', 0.0); vy_w = o.get('vy', 0.0)
+            vbx =  c * vx_w + s * vy_w
+            vby = -s * vx_w + c * vy_w
+            result.append((bx, by, float(o.get('r', 0.15)), vbx, vby))
+        return result
 
     # ── Scan noktaları — body frame ───────────────────────────────────────────
 
@@ -384,13 +414,18 @@ class NavigatorNode(Node):
              target_angle: float,
              v_limit: float,
              scan_pts: np.ndarray,
-             nearest_raw: float) -> Tuple[float, float]:
+             nearest_raw: float,
+             dyn_obs_body: list = None) -> Tuple[float, float]:
         """
-        Body frame'de DWA.
-        target_angle: hedef yönü body frame'de [rad]
-        scan_pts    : (N,2) body frame scan noktaları
-        nearest_raw : en yakın scan mesafesi [m] (hız adaptasyonu için)
+        Body frame'de DWA — statik (scan) + dinamik (hız tahminli) engel kontrolü.
+        target_angle  : hedef yönü body frame'de [rad]
+        scan_pts      : (N,2) body frame scan noktaları (statik engeller)
+        nearest_raw   : en yakın scan mesafesi [m]
+        dyn_obs_body  : [(bx, by, r, vbx, vby), ...] dinamik engeller body frame'de
         """
+        if dyn_obs_body is None:
+            dyn_obs_body = []
+
         vx = self._cand_vx; vy = self._cand_vy
         A  = self._cand_A;  S  = self._cand_S
 
@@ -408,7 +443,7 @@ class NavigatorNode(Node):
         traj_x = vx_m[:, None] * (steps[None, :] * sim_dt)  # (N, steps)
         traj_y = vy_m[:, None] * (steps[None, :] * sim_dt)
 
-        # Scan noktalarına karşı clearance (body frame'de aynı referans)
+        # ── Statik engeller: scan noktalarına karşı clearance ─────────────────
         if scan_pts.shape[0] > 0:
             sx = scan_pts[:, 0]; sy = scan_pts[:, 1]
             dx = traj_x[:, :, None] - sx[None, None, :]
@@ -416,6 +451,19 @@ class NavigatorNode(Node):
             min_clr = np.sqrt(dx**2 + dy**2).min(axis=(1, 2))
         else:
             min_clr = np.full(N, self._max_clear)
+
+        # ── Dinamik engeller: her zaman adımında tahmin edilen pozisyon ────────
+        # Engel j, zaman t=k*sim_dt'de: (bx_j + vbx_j*t, by_j + vby_j*t)
+        # Robot merkezinin bu noktaya uzaklığı clearance kontrolüne eklenir.
+        for bx, by, r, vbx, vby in dyn_obs_body:
+            t_vec = steps * sim_dt                          # (sim_steps,)
+            pred_x = bx + vbx * t_vec                      # (sim_steps,)
+            pred_y = by + vby * t_vec
+            dx_d = traj_x - pred_x[None, :]                # (N, sim_steps)
+            dy_d = traj_y - pred_y[None, :]
+            # Mesafe = merkez-merkez eksi engel yarıçapı (yüzey boşluğu)
+            clr_d = np.maximum(np.sqrt(dx_d**2 + dy_d**2) - r, 0.0).min(axis=1)
+            min_clr = np.minimum(min_clr, clr_d)
 
         valid = min_clr >= self._dwa_clr
 
@@ -449,16 +497,26 @@ class NavigatorNode(Node):
         ex = vx_e * sim_dt
         ey = vy_e * sim_dt
 
+        esc_steps = np.arange(1, 4, dtype=float)
+        etx = vx_e[:, None] * (esc_steps * sim_dt)
+        ety = vy_e[:, None] * (esc_steps * sim_dt)
+
         if scan_pts.shape[0] > 0:
-            # Kaçış yönü için ÇOK ADIMLI clearance (tek adım yetersiz kalıyordu)
-            esc_steps = np.arange(1, 4, dtype=float)
-            etx = vx_e[:, None] * (esc_steps * sim_dt)
-            ety = vy_e[:, None] * (esc_steps * sim_dt)
             dxe = etx[:, :, None] - sx[None, None, :]
             dye = ety[:, :, None] - sy[None, None, :]
             clr_e = np.sqrt(dxe**2 + dye**2).min(axis=(1, 2))
         else:
             clr_e = np.full(self._n_dir, self._max_clear)
+
+        # Dinamik engeller kaçış modunda da tahmin edilir
+        for bx, by, r, vbx, vby in dyn_obs_body:
+            t_vec = esc_steps * sim_dt
+            pred_x = bx + vbx * t_vec
+            pred_y = by + vby * t_vec
+            dx_d = etx - pred_x[None, :]
+            dy_d = ety - pred_y[None, :]
+            clr_d = np.maximum(np.sqrt(dx_d**2 + dy_d**2) - r, 0.0).min(axis=1)
+            clr_e = np.minimum(clr_e, clr_d)
 
         ang_diff_e  = np.abs(np.angle(np.exp(1j * (unique_A - target_angle))))
         heading_e   = 1.0 - ang_diff_e / math.pi

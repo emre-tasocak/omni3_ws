@@ -29,7 +29,7 @@ perception_node:
     dbscan_eps:     0.10        # m — DBSCAN yarıçapı
     dbscan_min_pts: 8           # gürültü filtresi (artırıldı: sahte küme azaltımı)
     max_dist:       4.0         # m — bu ötesi filtrele
-    self_filter_r:  0.65        # m — robot gövdesi filtresi (0.50→0.65)
+    self_filter_r:  0.30        # m — robot gövdesi filtresi (yakın insanı da algıla)
     dt:             0.05        # s
     kalman_Q:       0.01        # süreç gürültüsü
     kalman_R:       0.05        # ölçüm gürültüsü
