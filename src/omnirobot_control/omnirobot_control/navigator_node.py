@@ -122,6 +122,10 @@ class NavigatorNode(Node):
         self._replan_time       = None
         self._stuck_check_pose  = None
         self._stuck_check_time  = None
+        self._last_replan_time  = 0.0    # cooldown: ard arda replan isteği engelleme
+        self._replan_cooldown   = 3.5    # s
+        self._escape_count      = 0      # ardışık escape mod sayacı
+        self._in_escape         = False
 
         # Scan verisi (robot body frame)
         self._scan_ranges: Optional[np.ndarray] = None
@@ -296,6 +300,13 @@ class NavigatorNode(Node):
                 throttle_duration_sec=0.5,
             )
             self._stop()
+            # ESTOP → RRT* yeniden planlama: mevcut /obstacles ile engelden uzak yol iste
+            if (self._state == State.FOLLOWING and
+                    time.time() - self._last_replan_time >= self._replan_cooldown):
+                self.get_logger().warn('ESTOP → REPLANNING')
+                self._last_replan_time = time.time()
+                self._escape_count = 0
+                self._set_state(State.REPLANNING)
             return
 
         # Hız limiti: scan'dan gelen en yakın mesafe (tüm engeller) +
@@ -325,6 +336,23 @@ class NavigatorNode(Node):
         # DWA: body frame'de çalış
         vx_b, vy_b = self._dwa(target_angle_body, v_limit, scan_pts, nearest_raw,
                                 dyn_obs_body)
+
+        # Escape mod sayacı: 6 ardışık döngü (~0.3s) escape modundaysa replan iste
+        if self._in_escape:
+            self._escape_count += 1
+            if (self._escape_count >= 6 and
+                    self._state == State.FOLLOWING and
+                    time.time() - self._last_replan_time >= self._replan_cooldown):
+                self.get_logger().warn(
+                    f'Escape mod {self._escape_count}× → REPLANNING'
+                )
+                self._last_replan_time = time.time()
+                self._escape_count = 0
+                self._set_state(State.REPLANNING)
+                self._stop()
+                return
+        else:
+            self._escape_count = 0
 
         # Body frame → world frame dönüşümü
         c, s = math.cos(yaw), math.sin(yaw)
@@ -520,6 +548,7 @@ class NavigatorNode(Node):
 
         if np.any(valid):
             best = int(np.argmax(score))
+            self._in_escape = False
             return float(vx_m[best]), float(vy_m[best])
 
         # ── Kaçış modu ────────────────────────────────────────────────────────
@@ -558,6 +587,7 @@ class NavigatorNode(Node):
         escape_score = 0.80 * clr_norm + 0.20 * heading_e
 
         best_e = int(np.argmax(escape_score))
+        self._in_escape = True
         self.get_logger().warn(
             f'DWA kaçış: yön={math.degrees(unique_A[best_e]):.0f}° '
             f'clr={clr_e[best_e]:.2f}m  en_yakın={nearest_raw:.2f}m',
