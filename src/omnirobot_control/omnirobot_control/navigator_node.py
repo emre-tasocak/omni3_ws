@@ -243,10 +243,17 @@ class NavigatorNode(Node):
                 self._set_state(State.FOLLOWING)
             elif (self._replan_time is not None and
                   time.time() - self._replan_time > self._replan_to):
-                self.get_logger().warn(
-                    f'REPLANNING {self._replan_to:.0f}s aşıldı → IDLE'
-                )
-                self._set_state(State.IDLE)
+                # RRT* yol bulamadı → FGM-direct: hedef noktayı tek waypoint olarak koy
+                if self._goal is not None:
+                    gx, gy, _ = self._goal
+                    self._path = [(gx, gy)]
+                    self._path_idx = 0
+                    self.get_logger().warn(
+                        f'REPLANNING timeout → FGM-direct moda geçildi'
+                    )
+                    self._set_state(State.FOLLOWING)
+                else:
+                    self._set_state(State.IDLE)
 
         elif s == State.FOLLOWING:
             self._do_following()
@@ -259,9 +266,14 @@ class NavigatorNode(Node):
     # ── Takip döngüsü ─────────────────────────────────────────────────────────
 
     def _do_following(self):
-        if not self._path or self._goal is None:
+        if self._goal is None:
             self._stop()
             return
+        # Global path yok: hedef noktayı tek waypoint olarak kullan (FGM-direct)
+        if not self._path:
+            gx, gy, _ = self._goal
+            self._path = [(gx, gy)]
+            self._path_idx = 0
 
         px, py, yaw = self._pose
         gx, gy, _   = self._goal
