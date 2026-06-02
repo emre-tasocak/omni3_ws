@@ -344,14 +344,13 @@ class NavigatorNode(Node):
 
     def _fgm(self, target_angle: float, v_limit: float) -> Tuple[float, float]:
         """
-        Follow the Gap Method — body frame sterlen yönü + hız.
+        Follow the Gap Method v2 — body frame sterlen yönü + hız.
 
-        Her scan açısına iki ağırlık:
-          heading_w = exp(-3 * |açı - hedef|)  → hedefe yakın açılar yüksek puan
-          dist_w    = range / max_range         → açık alan yüksek puan
+        1. safety = robot_r + dwa_clr = 0.69m altındaki scan yönleri 'bloke'.
+        2. Bloke olmayan yönler içinde hedefe doğrusal en yakın açı seçilir.
+        3. Hız: seçilen yön ±10° içindeki en yakın engele orantılı.
 
-        Çarpım, DWA'dan farklı olarak herhangi bir mesafedeki engeli etkiler:
-        2m ötedeki engel de skoru düşürür — robot önce hafif sapar, yaklaştıkça daha sert.
+        v1 hataları: Gauss ağırlık sol yolu görmedi, ±30° front hız çok yavaşlattı.
         """
         rng = self._scan_ranges
         ang = self._scan_angles
@@ -362,36 +361,39 @@ class NavigatorNode(Node):
         if not valid.any():
             return 0.0, 0.0
 
-        rng_v  = np.where(valid, rng, 0.0)
-        max_r  = max(float(rng_v.max()), 0.1)
+        # Güvenli eşik: bu altındaki yönler bloke
+        safety  = self._robot_r + self._dwa_clr   # 0.69 m
+        is_free = valid & (rng >= safety)
 
-        # Heading ağırlığı: hedef yönüne Gauss (60°'de yarı değer)
+        # Heading ağırlığı: hedefe doğrusal [0, 1]
         ang_diff  = np.abs(np.angle(np.exp(1j * (ang - target_angle))))
-        heading_w = np.exp(-3.0 * ang_diff)
+        heading_w = 1.0 - ang_diff / math.pi
 
-        # Clearance ağırlığı: max mesafeye normalize (uzak = iyi)
-        dist_w = rng_v / max_r
+        if is_free.any():
+            score    = np.where(is_free, heading_w, -np.inf)
+            best_idx = int(np.argmax(score))
+        else:
+            # Tüm yönler bloke: en açık + hedefe yakın (acil kaçış)
+            rng_v = np.where(valid, rng, 0.0)
+            score = 0.6 * rng_v / max(float(rng_v.max()), 0.1) + 0.4 * heading_w
+            best_idx = int(np.argmax(score))
 
-        score = heading_w * dist_w
-        score[~valid] = 0.0
-
-        best_idx = int(np.argmax(score))
         best_ang = float(ang[best_idx])
 
-        # Seçilen yön ±30° içindeki en yakın engel → hız
-        front_mask = np.abs(np.angle(np.exp(1j * (ang - best_ang)))) < math.radians(30)
+        # Seçilen yön ±10° içindeki en yakın engel → hız kontrolü
+        front_mask = np.abs(np.angle(np.exp(1j * (ang - best_ang)))) < math.radians(10)
         front_rng  = rng[front_mask & valid]
         front_dist = float(front_rng.min()) if len(front_rng) else self._max_clear
         surface    = max(front_dist - self._robot_r, 0.0)
 
-        # 1.5m ötesinde tam hız, yaklaştıkça orantılı azal
-        speed = v_limit * min(surface / (self._d_safe * 2.5), 1.0)
-        speed = max(speed, self._v_max * 0.12)
+        # Hız: d_safe ötesinde tam hız, içinde orantılı azal
+        speed = v_limit * min(surface / self._d_safe, 1.0)
+        speed = max(speed, self._v_max * 0.15)
         speed = min(speed, v_limit)
 
-        self.get_logger().debug(
-            f'FGM: yön={math.degrees(best_ang):.0f}° hız={speed:.2f}m/s '
-            f'ön_engel={front_dist:.2f}m',
+        self.get_logger().info(
+            f'FGM yön={math.degrees(best_ang):.0f}° hız={speed:.2f} '
+            f'ön={front_dist:.2f}m serbest={int(is_free.sum())}',
             throttle_duration_sec=1.0,
         )
         return speed * math.cos(best_ang), speed * math.sin(best_ang)

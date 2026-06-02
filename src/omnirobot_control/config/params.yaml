@@ -26,8 +26,8 @@ kinematics_node:
 # ── Algılama ─────────────────────────────────────────────────────────────────
 perception_node:
   ros__parameters:
-    dbscan_eps:     0.10        # m — DBSCAN yarıçapı
-    dbscan_min_pts: 8           # gürültü filtresi (artırıldı: sahte küme azaltımı)
+    dbscan_eps:     0.12        # m — DBSCAN yarıçapı (orijinal değer)
+    dbscan_min_pts: 4           # düşürüldü: küçük engeller de algılansın
     max_dist:       4.0         # m — bu ötesi filtrele
     self_filter_r:  0.30        # m — robot gövdesi filtresi (yakın insanı da algıla)
     dt:             0.05        # s
@@ -43,10 +43,10 @@ perception_node:
 # ── Global planlama ───────────────────────────────────────────────────────────
 global_planner_node:
   ros__parameters:
-    n_max:      3000            # RRT* max iterasyon (artırıldı: dar geçit)
+    n_max:      6000            # RRT* max iterasyon (artırıldı: 4 engelli ortam)
     eta:        0.35            # m — max steer adımı
     p_goal:     0.15            # hedef bias olasılığı
-    d_safe:     0.20            # m — engel şişirme marjı (azaltıldı: dar geçitten yol bul)
+    d_safe:     0.15            # m — azaltıldı: dar geçitlerde yol bulabilsin
     map_margin: 2.0             # m — arama alanı genişletme
 
 # ── Trayektori yumuşatma ─────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ trajectory_smoother_node:
 navigator_node:
   ros__parameters:
     dt:              0.05        # s  — kontrol döngüsü (20 Hz)
-    v_max:           0.28        # m/s — azaltıldı: lidar 10Hz @ 0.28m/s → 0.028m/döngü
+    v_max:           0.35        # m/s — FGM engel yoksa tam hız, yakınında yavaşlar
     lookahead:       0.70        # m  — Pure Pursuit carrot ufku (normal mod)
     pos_tol:         0.10        # m  — varış toleransı
     robot_radius:    0.27        # m  — fiziksel yarıçap
