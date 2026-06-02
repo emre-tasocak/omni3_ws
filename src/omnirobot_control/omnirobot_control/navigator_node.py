@@ -330,29 +330,8 @@ class NavigatorNode(Node):
         dx_w = wx - px; dy_w = wy - py
         target_angle_body = math.atan2(dy_w, dx_w) - yaw
 
-        # Dinamik engelleri body frame'e dönüştür (hız tahmini için)
-        dyn_obs_body = self._dynamic_obs_body(px, py, yaw)
-
-        # DWA: body frame'de çalış
-        vx_b, vy_b = self._dwa(target_angle_body, v_limit, scan_pts, nearest_raw,
-                                dyn_obs_body)
-
-        # Escape mod sayacı: 6 ardışık döngü (~0.3s) escape modundaysa replan iste
-        if self._in_escape:
-            self._escape_count += 1
-            if (self._escape_count >= 6 and
-                    self._state == State.FOLLOWING and
-                    time.time() - self._last_replan_time >= self._replan_cooldown):
-                self.get_logger().warn(
-                    f'Escape mod {self._escape_count}× → REPLANNING'
-                )
-                self._last_replan_time = time.time()
-                self._escape_count = 0
-                self._set_state(State.REPLANNING)
-                self._stop()
-                return
-        else:
-            self._escape_count = 0
+        # FGM: body frame'de boşluğa yönelim
+        vx_b, vy_b = self._fgm(target_angle_body, v_limit)
 
         # Body frame → world frame dönüşümü
         c, s = math.cos(yaw), math.sin(yaw)
@@ -360,6 +339,62 @@ class NavigatorNode(Node):
         vy_w = s * vx_b + c * vy_b
 
         self._publish_vel(vx_w, vy_w, 0.0)
+
+    # ── Follow the Gap Method ─────────────────────────────────────────────────
+
+    def _fgm(self, target_angle: float, v_limit: float) -> Tuple[float, float]:
+        """
+        Follow the Gap Method — body frame sterlen yönü + hız.
+
+        Her scan açısına iki ağırlık:
+          heading_w = exp(-3 * |açı - hedef|)  → hedefe yakın açılar yüksek puan
+          dist_w    = range / max_range         → açık alan yüksek puan
+
+        Çarpım, DWA'dan farklı olarak herhangi bir mesafedeki engeli etkiler:
+        2m ötedeki engel de skoru düşürür — robot önce hafif sapar, yaklaştıkça daha sert.
+        """
+        rng = self._scan_ranges
+        ang = self._scan_angles
+        if rng is None:
+            return 0.0, 0.0
+
+        valid = np.isfinite(rng) & (rng > 0.05)
+        if not valid.any():
+            return 0.0, 0.0
+
+        rng_v  = np.where(valid, rng, 0.0)
+        max_r  = max(float(rng_v.max()), 0.1)
+
+        # Heading ağırlığı: hedef yönüne Gauss (60°'de yarı değer)
+        ang_diff  = np.abs(np.angle(np.exp(1j * (ang - target_angle))))
+        heading_w = np.exp(-3.0 * ang_diff)
+
+        # Clearance ağırlığı: max mesafeye normalize (uzak = iyi)
+        dist_w = rng_v / max_r
+
+        score = heading_w * dist_w
+        score[~valid] = 0.0
+
+        best_idx = int(np.argmax(score))
+        best_ang = float(ang[best_idx])
+
+        # Seçilen yön ±30° içindeki en yakın engel → hız
+        front_mask = np.abs(np.angle(np.exp(1j * (ang - best_ang)))) < math.radians(30)
+        front_rng  = rng[front_mask & valid]
+        front_dist = float(front_rng.min()) if len(front_rng) else self._max_clear
+        surface    = max(front_dist - self._robot_r, 0.0)
+
+        # 1.5m ötesinde tam hız, yaklaştıkça orantılı azal
+        speed = v_limit * min(surface / (self._d_safe * 2.5), 1.0)
+        speed = max(speed, self._v_max * 0.12)
+        speed = min(speed, v_limit)
+
+        self.get_logger().debug(
+            f'FGM: yön={math.degrees(best_ang):.0f}° hız={speed:.2f}m/s '
+            f'ön_engel={front_dist:.2f}m',
+            throttle_duration_sec=1.0,
+        )
+        return speed * math.cos(best_ang), speed * math.sin(best_ang)
 
     # ── Dinamik engeller — body frame + hız ──────────────────────────────────
 
