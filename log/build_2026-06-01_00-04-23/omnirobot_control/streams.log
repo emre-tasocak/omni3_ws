@@ -1,0 +1,84 @@
+[5.352s] Invoking command in '/home/robocupmsl/omni3_ws/build/omnirobot_control': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/robocupmsl/omni3_ws/build/omnirobot_control/build
+[7.036s] running develop
+[8.018s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:363: UserWarning: Unbuilt egg for pytest-repeat [unknown version] (/usr/lib/python3/dist-packages)
+[8.019s]   self.local_index = Environment(self.shadow_path + sys.path)
+[8.251s] Removing /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot-control.egg-link (link to .)
+[8.443s] Invoked command in '/home/robocupmsl/omni3_ws/build/omnirobot_control' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/robocupmsl/omni3_ws/build/omnirobot_control/build
+[8.450s] Invoking command in '/home/robocupmsl/omni3_ws/src/omnirobot_control': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/omnirobot_control build --build-base /home/robocupmsl/omni3_ws/build/omnirobot_control/build install --record /home/robocupmsl/omni3_ws/build/omnirobot_control/install.log --single-version-externally-managed install_data --force
+[10.130s] running egg_info
+[10.229s] writing ../../build/omnirobot_control/omnirobot_control.egg-info/PKG-INFO
+[10.229s] writing dependency_links to ../../build/omnirobot_control/omnirobot_control.egg-info/dependency_links.txt
+[10.234s] writing entry points to ../../build/omnirobot_control/omnirobot_control.egg-info/entry_points.txt
+[10.235s] writing requirements to ../../build/omnirobot_control/omnirobot_control.egg-info/requires.txt
+[10.236s] writing top-level names to ../../build/omnirobot_control/omnirobot_control.egg-info/top_level.txt
+[10.448s] reading manifest file '../../build/omnirobot_control/omnirobot_control.egg-info/SOURCES.txt'
+[10.454s] writing manifest file '../../build/omnirobot_control/omnirobot_control.egg-info/SOURCES.txt'
+[10.455s] running build
+[10.455s] running build_py
+[10.456s] creating /home/robocupmsl/omni3_ws/build/omnirobot_control/build
+[10.457s] creating /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib
+[10.457s] creating /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.458s] copying omnirobot_control/quintic_segment.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.459s] copying omnirobot_control/__init__.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.460s] copying omnirobot_control/perception.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.461s] copying omnirobot_control/rrt_star.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.462s] copying omnirobot_control/trajectory_smoother_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.463s] copying omnirobot_control/perception_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.464s] copying omnirobot_control/kinematics_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.465s] copying omnirobot_control/LidarLib.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.466s] copying omnirobot_control/roboclaw.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.467s] copying omnirobot_control/navigator_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.468s] copying omnirobot_control/lidar_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.469s] copying omnirobot_control/global_planner_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.470s] copying omnirobot_control/kinematics.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.471s] copying omnirobot_control/goal_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+[10.473s] running install
+[10.498s] running install_lib
+[10.602s] creating /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.602s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/quintic_segment.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.604s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/__init__.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.604s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/perception.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.605s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/rrt_star.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.607s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/trajectory_smoother_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.608s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/perception_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.609s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/kinematics_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.610s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/LidarLib.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.611s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/roboclaw.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.612s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/navigator_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.614s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/lidar_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.615s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/global_planner_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.616s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/kinematics.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.617s] copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/goal_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+[10.626s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/quintic_segment.py to quintic_segment.cpython-312.pyc
+[10.644s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/__init__.py to __init__.cpython-312.pyc
+[10.649s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/perception.py to perception.cpython-312.pyc
+[10.660s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/rrt_star.py to rrt_star.cpython-312.pyc
+[10.673s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/trajectory_smoother_node.py to trajectory_smoother_node.cpython-312.pyc
+[10.684s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/perception_node.py to perception_node.cpython-312.pyc
+[10.697s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/kinematics_node.py to kinematics_node.cpython-312.pyc
+[10.706s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/LidarLib.py to LidarLib.cpython-312.pyc
+[10.717s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/roboclaw.py to roboclaw.cpython-312.pyc
+[10.727s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/navigator_node.py to navigator_node.cpython-312.pyc
+[10.743s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/lidar_node.py to lidar_node.cpython-312.pyc
+[10.750s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/global_planner_node.py to global_planner_node.cpython-312.pyc
+[10.757s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/kinematics.py to kinematics.cpython-312.pyc
+[10.763s] byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/goal_node.py to goal_node.cpython-312.pyc
+[10.767s] running install_data
+[10.768s] copying resource/omnirobot_control -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/ament_index/resource_index/packages
+[10.769s] copying package.xml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control
+[10.770s] copying rviz/navigator.rviz -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/rviz
+[10.773s] copying config/roboclaw_params.yaml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/config
+[10.775s] copying config/params.yaml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/config
+[10.776s] copying launch/navigation.launch.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/launch
+[10.777s] running install_egg_info
+[10.985s] Copying ../../build/omnirobot_control/omnirobot_control.egg-info to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control-0.0.1-py3.12.egg-info
+[10.994s] running install_scripts
+[11.922s] Installing global_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.923s] Installing goal_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.925s] Installing kinematics_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.927s] Installing lidar_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.928s] Installing navigator_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.930s] Installing perception_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.932s] Installing trajectory_smoother_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[11.939s] writing list of installed files to '/home/robocupmsl/omni3_ws/build/omnirobot_control/install.log'
+[12.110s] Invoked command in '/home/robocupmsl/omni3_ws/src/omnirobot_control' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/omnirobot_control build --build-base /home/robocupmsl/omni3_ws/build/omnirobot_control/build install --record /home/robocupmsl/omni3_ws/build/omnirobot_control/install.log --single-version-externally-managed install_data --force

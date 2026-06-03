@@ -1,0 +1,7 @@
+Metadata-Version: 2.1
+Name: omnirobot-control
+Version: 0.0.1
+Summary: 3-wheel omni robot kinematics and control
+Maintainer: robocupmsl
+Maintainer-email: tasocak131@gmail.com
+License: MIT

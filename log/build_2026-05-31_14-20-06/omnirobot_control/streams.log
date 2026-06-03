@@ -1,0 +1,10 @@
+[0.053s] Invoking command in '/home/robocupmsl/omni3_ws/build/omnirobot_control': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/robocupmsl/omni3_ws/src/omnirobot_control -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCATKIN_SYMLINK_INSTALL=ON -DCMAKE_INSTALL_PREFIX=/home/robocupmsl/omni3_ws/install/omnirobot_control
+[0.321s] CMake Warning:
+[0.321s]   Ignoring extra path from command line:
+[0.322s] 
+[0.323s]    "/home/robocupmsl/omni3_ws/src/omnirobot_control"
+[0.323s] 
+[0.324s] 
+[0.335s] CMake Error: The source directory "/home/robocupmsl/omni3_ws/src/omnirobot_control" does not appear to contain CMakeLists.txt.
+[0.335s] Specify --help for usage, or press the help button on the CMake GUI.
+[0.365s] Invoked command in '/home/robocupmsl/omni3_ws/build/omnirobot_control' returned '1': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake /home/robocupmsl/omni3_ws/src/omnirobot_control -DCATKIN_INSTALL_INTO_PREFIX_ROOT=0 -DCATKIN_SYMLINK_INSTALL=ON -DCMAKE_INSTALL_PREFIX=/home/robocupmsl/omni3_ws/install/omnirobot_control

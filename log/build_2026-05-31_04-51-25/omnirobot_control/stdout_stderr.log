@@ -1,0 +1,25 @@
+running develop
+/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:363: UserWarning: Unbuilt egg for pytest-repeat [unknown version] (/usr/lib/python3/dist-packages)
+  self.local_index = Environment(self.shadow_path + sys.path)
+running egg_info
+writing omnirobot_control.egg-info/PKG-INFO
+writing dependency_links to omnirobot_control.egg-info/dependency_links.txt
+writing entry points to omnirobot_control.egg-info/entry_points.txt
+writing requirements to omnirobot_control.egg-info/requires.txt
+writing top-level names to omnirobot_control.egg-info/top_level.txt
+reading manifest file 'omnirobot_control.egg-info/SOURCES.txt'
+writing manifest file 'omnirobot_control.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot-control.egg-link (link to .)
+Installing global_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing goto_pose_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing kinematics_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing lidar_perception_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing local_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing move_1m_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing navigator_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing state_machine_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing trajectory_smoother_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+
+Installed /home/robocupmsl/omni3_ws/build/omnirobot_control
+running symlink_data

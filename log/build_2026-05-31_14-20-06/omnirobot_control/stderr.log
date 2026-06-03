@@ -1,0 +1,8 @@
+CMake Warning:
+  Ignoring extra path from command line:
+
+   "/home/robocupmsl/omni3_ws/src/omnirobot_control"
+
+
+CMake Error: The source directory "/home/robocupmsl/omni3_ws/src/omnirobot_control" does not appear to contain CMakeLists.txt.
+Specify --help for usage, or press the help button on the CMake GUI.

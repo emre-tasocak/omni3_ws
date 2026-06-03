@@ -1,0 +1,8 @@
+[console_scripts]
+global_planner_node = omnirobot_control.global_planner_node:main
+goal_node = omnirobot_control.goal_node:main
+kinematics_node = omnirobot_control.kinematics_node:main
+lidar_node = omnirobot_control.lidar_node:main
+navigator_node = omnirobot_control.navigator_node:main
+perception_node = omnirobot_control.perception_node:main
+trajectory_smoother_node = omnirobot_control.trajectory_smoother_node:main

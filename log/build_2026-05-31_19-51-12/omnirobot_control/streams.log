@@ -1,0 +1,25 @@
+[9.916s] Invoking command in '/home/robocupmsl/omni3_ws/build/omnirobot_control': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/robocupmsl/omni3_ws/build/omnirobot_control/build --no-deps symlink_data
+[13.853s] running develop
+[16.302s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:363: UserWarning: Unbuilt egg for pytest-repeat [unknown version] (/usr/lib/python3/dist-packages)
+[16.307s]   self.local_index = Environment(self.shadow_path + sys.path)
+[16.779s] running egg_info
+[17.033s] writing omnirobot_control.egg-info/PKG-INFO
+[17.035s] writing dependency_links to omnirobot_control.egg-info/dependency_links.txt
+[17.038s] writing entry points to omnirobot_control.egg-info/entry_points.txt
+[17.044s] writing requirements to omnirobot_control.egg-info/requires.txt
+[17.045s] writing top-level names to omnirobot_control.egg-info/top_level.txt
+[17.517s] reading manifest file 'omnirobot_control.egg-info/SOURCES.txt'
+[17.528s] writing manifest file 'omnirobot_control.egg-info/SOURCES.txt'
+[17.770s] running build_ext
+[17.772s] Creating /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot-control.egg-link (link to .)
+[17.777s] Installing global_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.778s] Installing goal_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.779s] Installing kinematics_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.789s] Installing lidar_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.798s] Installing navigator_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.800s] Installing perception_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.809s] Installing trajectory_smoother_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+[17.817s] 
+[17.818s] Installed /home/robocupmsl/omni3_ws/build/omnirobot_control
+[17.826s] running symlink_data
+[18.040s] Invoked command in '/home/robocupmsl/omni3_ws/build/omnirobot_control' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/robocupmsl/omni3_ws/build/omnirobot_control/build --no-deps symlink_data

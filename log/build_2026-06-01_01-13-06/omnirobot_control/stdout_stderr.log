@@ -1,0 +1,66 @@
+running develop
+/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:363: UserWarning: Unbuilt egg for pytest-repeat [unknown version] (/usr/lib/python3/dist-packages)
+  self.local_index = Environment(self.shadow_path + sys.path)
+Removing /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot-control.egg-link (link to .)
+running egg_info
+writing ../../build/omnirobot_control/omnirobot_control.egg-info/PKG-INFO
+writing dependency_links to ../../build/omnirobot_control/omnirobot_control.egg-info/dependency_links.txt
+writing entry points to ../../build/omnirobot_control/omnirobot_control.egg-info/entry_points.txt
+writing requirements to ../../build/omnirobot_control/omnirobot_control.egg-info/requires.txt
+writing top-level names to ../../build/omnirobot_control/omnirobot_control.egg-info/top_level.txt
+reading manifest file '../../build/omnirobot_control/omnirobot_control.egg-info/SOURCES.txt'
+writing manifest file '../../build/omnirobot_control/omnirobot_control.egg-info/SOURCES.txt'
+running build
+running build_py
+copying omnirobot_control/trajectory_smoother_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+copying omnirobot_control/navigator_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+copying omnirobot_control/global_planner_node.py -> /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control
+running install
+running install_lib
+creating /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/quintic_segment.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/__init__.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/perception.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/rrt_star.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/trajectory_smoother_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/perception_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/kinematics_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/LidarLib.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/roboclaw.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/navigator_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/lidar_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/global_planner_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/kinematics.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+copying /home/robocupmsl/omni3_ws/build/omnirobot_control/build/lib/omnirobot_control/goal_node.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/quintic_segment.py to quintic_segment.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/__init__.py to __init__.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/perception.py to perception.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/rrt_star.py to rrt_star.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/trajectory_smoother_node.py to trajectory_smoother_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/perception_node.py to perception_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/kinematics_node.py to kinematics_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/LidarLib.py to LidarLib.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/roboclaw.py to roboclaw.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/navigator_node.py to navigator_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/lidar_node.py to lidar_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/global_planner_node.py to global_planner_node.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/kinematics.py to kinematics.cpython-312.pyc
+byte-compiling /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control/goal_node.py to goal_node.cpython-312.pyc
+running install_data
+copying resource/omnirobot_control -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/ament_index/resource_index/packages
+copying package.xml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control
+copying rviz/navigator.rviz -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/rviz
+copying config/roboclaw_params.yaml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/config
+copying config/params.yaml -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/config
+copying launch/navigation.launch.py -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/launch
+running install_egg_info
+Copying ../../build/omnirobot_control/omnirobot_control.egg-info to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot_control-0.0.1-py3.12.egg-info
+running install_scripts
+Installing global_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing goal_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing kinematics_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing lidar_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing navigator_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing perception_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+Installing trajectory_smoother_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control
+writing list of installed files to '/home/robocupmsl/omni3_ws/build/omnirobot_control/install.log'

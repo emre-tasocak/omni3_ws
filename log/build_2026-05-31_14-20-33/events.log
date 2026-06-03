@@ -1,0 +1,129 @@
+[0.000000] (-) TimerEvent: {}
+[0.000250] (omnirobot_control) JobQueued: {'identifier': 'omnirobot_control', 'dependencies': OrderedDict()}
+[0.001690] (omnirobot_control) JobStarted: {'identifier': 'omnirobot_control'}
+[0.099219] (-) TimerEvent: {}
+[0.199545] (-) TimerEvent: {}
+[0.299864] (-) TimerEvent: {}
+[0.400183] (-) TimerEvent: {}
+[0.500496] (-) TimerEvent: {}
+[0.600810] (-) TimerEvent: {}
+[0.701187] (-) TimerEvent: {}
+[0.801534] (-) TimerEvent: {}
+[0.901865] (-) TimerEvent: {}
+[1.002550] (-) TimerEvent: {}
+[1.103682] (-) TimerEvent: {}
+[1.204995] (-) TimerEvent: {}
+[1.305578] (-) TimerEvent: {}
+[1.405963] (-) TimerEvent: {}
+[1.506364] (-) TimerEvent: {}
+[1.606744] (-) TimerEvent: {}
+[1.707153] (-) TimerEvent: {}
+[1.807487] (-) TimerEvent: {}
+[1.907827] (-) TimerEvent: {}
+[2.008204] (-) TimerEvent: {}
+[2.108570] (-) TimerEvent: {}
+[2.209794] (-) TimerEvent: {}
+[2.310648] (-) TimerEvent: {}
+[2.411276] (-) TimerEvent: {}
+[2.511690] (-) TimerEvent: {}
+[2.613230] (-) TimerEvent: {}
+[2.713602] (-) TimerEvent: {}
+[2.813912] (-) TimerEvent: {}
+[2.914328] (-) TimerEvent: {}
+[3.014649] (-) TimerEvent: {}
+[3.114965] (-) TimerEvent: {}
+[3.218542] (-) TimerEvent: {}
+[3.318866] (-) TimerEvent: {}
+[3.419397] (-) TimerEvent: {}
+[3.521349] (-) TimerEvent: {}
+[3.621725] (-) TimerEvent: {}
+[3.722040] (-) TimerEvent: {}
+[3.822400] (-) TimerEvent: {}
+[3.922719] (-) TimerEvent: {}
+[4.023020] (-) TimerEvent: {}
+[4.123751] (-) TimerEvent: {}
+[4.224184] (-) TimerEvent: {}
+[4.327541] (-) TimerEvent: {}
+[4.427941] (-) TimerEvent: {}
+[4.528297] (-) TimerEvent: {}
+[4.628886] (-) TimerEvent: {}
+[4.729528] (-) TimerEvent: {}
+[4.829979] (-) TimerEvent: {}
+[4.930530] (-) TimerEvent: {}
+[5.027325] (omnirobot_control) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robocupmsl/omni3_ws/build/omnirobot_control/build', '--no-deps', 'symlink_data'], 'cwd': '/home/robocupmsl/omni3_ws/build/omnirobot_control', 'env': {'GJS_DEBUG_TOPICS': 'JS ERROR;JS LOG', 'VSCODE_CWD': '/home/robocupmsl', 'VSCODE_ESM_ENTRYPOINT': 'vs/workbench/api/node/extensionHostProcess', 'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'AI_AGENT': 'claude-code_2-1-158_agent', 'LANGUAGE': 'en', 'USER': 'robocupmsl', 'CLAUDE_CODE_ENTRYPOINT': 'claude-vscode', 'VSCODE_NLS_CONFIG': '{"userLocale":"en-us","osLocale":"en","resolvedLanguage":"en","defaultMessagesFile":"/usr/share/code/resources/app/out/nls.messages.json","locale":"en-us","availableLanguages":{}}', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'GIT_EDITOR': 'true', 'VSCODE_HANDLES_UNCAUGHT_ERRORS': 'true', 'XDG_SESSION_TYPE': 'x11', 'CLAUDE_AGENT_SDK_VERSION': '0.3.158', 'CLUTTER_DISABLE_MIPMAPPED_TEXT': '1', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/aarch64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib', 'HOME': '/home/robocupmsl', 'CHROME_DESKTOP': 'code.desktop', 'OLDPWD': '/home/robocupmsl/omni3_ws', 'DESKTOP_SESSION': 'ubuntu', 'VSCODE_IPC_HOOK': '/run/user/1000/vscode-89bcef98-1.12-main.sock', 'GIO_LAUNCHED_DESKTOP_FILE': '/usr/share/applications/code.desktop', 'ROS_PYTHON_VERSION': '3', 'GNOME_SHELL_SESSION_MODE': 'ubuntu', 'GTK_MODULES': 'gail:atk-bridge', 'XDG_SEAT_PATH': '/org/freedesktop/DisplayManager/Seat0', 'MANAGERPID': '1877', 'SYSTEMD_EXEC_PID': '2176', 'GSM_SKIP_SSH_AGENT_WORKAROUND': 'true', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'GIO_LAUNCHED_DESKTOP_FILE_PID': '2968', 'VSCODE_CRASH_REPORTER_PROCESS_TYPE': 'extensionHost', 'DEBUGINFOD_URLS': 'https://debuginfod.ubuntu.com', 'IM_CONFIG_PHASE': '1', 'TMPDIR': '/tmp/claude-1000', 'ROS_DISTRO': 'jazzy', 'LOGNAME': 'robocupmsl', 'JOURNAL_STREAM': '8:17323', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'MEMORY_PRESSURE_WATCH': '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice/org.gnome.Shell@x11.service/memory.pressure', 'XDG_SESSION_CLASS': 'user', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'TMPPREFIX': '/tmp/claude-1000/zsh', 'FC_FONTATIONS': '1', 'MCP_CONNECTION_NONBLOCKING': 'true', 'PATH': '/usr/bin:/home/robocupmsl/.local/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/home/robocupmsl/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'SESSION_MANAGER': 'local/robocupmsl-desktop:@/tmp/.ICE-unix/2148,unix/robocupmsl-desktop:/tmp/.ICE-unix/2148', 'GDM_LANG': 'en', 'INVOCATION_ID': 'bf765fc5ef1141f9b120fb8945f29732', 'CLAUDE_CODE_TMPDIR': '/tmp/claude-1000', 'COREPACK_ENABLE_AUTO_PIN': '0', 'XDG_SESSION_PATH': '/org/freedesktop/DisplayManager/Session0', 'XDG_MENU_PREFIX': 'gnome-', 'XDG_RUNTIME_DIR': '/run/user/1000', 'GDK_BACKEND': 'x11', 'CLAUDE_EFFORT': 'high', 'DISPLAY': ':0', 'NoDefaultCurrentDirectoryInExePath': '1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'ubuntu:GNOME', 'XMODIFIERS': '@im=ibus', 'XDG_SESSION_DESKTOP': 'ubuntu', 'XAUTHORITY': '/home/robocupmsl/.Xauthority', 'SSH_AUTH_SOCK': '/run/user/1000/keyring/ssh', 'XDG_GREETER_DATA_DIR': '/var/lib/lightdm-data/robocupmsl', 'AMENT_PREFIX_PATH': '/opt/ros/jazzy', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'ELECTRON_RUN_AS_NODE': '1', 'GDMSESSION': 'ubuntu', 'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING': 'true', 'CLAUDE_CODE_SESSION_ID': 'd358ef19-eea6-40c2-9a87-642e42caeeb4', 'CLAUDECODE': '1', 'GPG_AGENT_INFO': '/run/user/1000/gnupg/S.gpg-agent:0:1', 'GJS_DEBUG_OUTPUT': 'stderr', 'VIRTUAL_ENV': '/usr', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/robocupmsl/omni3_ws/build/omnirobot_control', 'LC_ALL': 'en_US.UTF-8', 'XDG_CONFIG_DIRS': '/etc/xdg/xdg-ubuntu:/etc/xdg', 'VSCODE_CODE_CACHE_PATH': '/home/robocupmsl/.config/Code/CachedData/8761a5560cfd65fdd19ce7e2bd18dab5c0a4d84e', 'XDG_DATA_DIRS': '/usr/share/ubuntu:/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'CLAUDE_CODE_EXECPATH': '/home/robocupmsl/.vscode/extensions/anthropic.claude-code-2.1.158-linux-arm64/resources/native-binary/claude', 'PYTHONPATH': '/home/robocupmsl/omni3_ws/build/omnirobot_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages', 'CLAUDE_CODE_ENABLE_TASKS': '0', 'COLCON': '1', 'MEMORY_PRESSURE_WRITE': 'c29tZSAyMDAwMDAgMjAwMDAwMAA=', 'CMAKE_PREFIX_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor', 'VSCODE_PID': '2968'}, 'shell': False}
+[5.031386] (-) TimerEvent: {}
+[5.131657] (-) TimerEvent: {}
+[5.231992] (-) TimerEvent: {}
+[5.332377] (-) TimerEvent: {}
+[5.432719] (-) TimerEvent: {}
+[5.533193] (-) TimerEvent: {}
+[5.633556] (-) TimerEvent: {}
+[5.733903] (-) TimerEvent: {}
+[5.834292] (-) TimerEvent: {}
+[5.934597] (-) TimerEvent: {}
+[6.034953] (-) TimerEvent: {}
+[6.135339] (-) TimerEvent: {}
+[6.235655] (-) TimerEvent: {}
+[6.335989] (-) TimerEvent: {}
+[6.436364] (-) TimerEvent: {}
+[6.536723] (-) TimerEvent: {}
+[6.638203] (-) TimerEvent: {}
+[6.739175] (-) TimerEvent: {}
+[6.839685] (-) TimerEvent: {}
+[6.940041] (-) TimerEvent: {}
+[7.040445] (-) TimerEvent: {}
+[7.141200] (-) TimerEvent: {}
+[7.242314] (-) TimerEvent: {}
+[7.304292] (omnirobot_control) StdoutLine: {'line': b'running develop\n'}
+[7.343195] (-) TimerEvent: {}
+[7.446610] (-) TimerEvent: {}
+[7.548283] (-) TimerEvent: {}
+[7.648615] (-) TimerEvent: {}
+[7.750220] (-) TimerEvent: {}
+[7.850826] (-) TimerEvent: {}
+[7.951190] (-) TimerEvent: {}
+[8.051558] (-) TimerEvent: {}
+[8.151892] (-) TimerEvent: {}
+[8.252220] (-) TimerEvent: {}
+[8.352589] (-) TimerEvent: {}
+[8.453036] (-) TimerEvent: {}
+[8.482558] (omnirobot_control) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:363: UserWarning: Unbuilt egg for pytest-repeat [unknown version] (/usr/lib/python3/dist-packages)\n'}
+[8.483286] (omnirobot_control) StderrLine: {'line': b'  self.local_index = Environment(self.shadow_path + sys.path)\n'}
+[8.553220] (-) TimerEvent: {}
+[8.653595] (-) TimerEvent: {}
+[8.728799] (omnirobot_control) StdoutLine: {'line': b'running egg_info\n'}
+[8.753726] (-) TimerEvent: {}
+[8.842186] (omnirobot_control) StdoutLine: {'line': b'writing omnirobot_control.egg-info/PKG-INFO\n'}
+[8.843297] (omnirobot_control) StdoutLine: {'line': b'writing dependency_links to omnirobot_control.egg-info/dependency_links.txt\n'}
+[8.845395] (omnirobot_control) StdoutLine: {'line': b'writing entry points to omnirobot_control.egg-info/entry_points.txt\n'}
+[8.846235] (omnirobot_control) StdoutLine: {'line': b'writing requirements to omnirobot_control.egg-info/requires.txt\n'}
+[8.846942] (omnirobot_control) StdoutLine: {'line': b'writing top-level names to omnirobot_control.egg-info/top_level.txt\n'}
+[8.853933] (-) TimerEvent: {}
+[8.954295] (-) TimerEvent: {}
+[9.057337] (-) TimerEvent: {}
+[9.154560] (omnirobot_control) StdoutLine: {'line': b"reading manifest file 'omnirobot_control.egg-info/SOURCES.txt'\n"}
+[9.157539] (-) TimerEvent: {}
+[9.160767] (omnirobot_control) StdoutLine: {'line': b"writing manifest file 'omnirobot_control.egg-info/SOURCES.txt'\n"}
+[9.257680] (-) TimerEvent: {}
+[9.353508] (omnirobot_control) StdoutLine: {'line': b'running build_ext\n'}
+[9.355261] (omnirobot_control) StdoutLine: {'line': b'Creating /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/python3.12/site-packages/omnirobot-control.egg-link (link to .)\n'}
+[9.357999] (omnirobot_control) StdoutLine: {'line': b'Installing global_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.358554] (-) TimerEvent: {}
+[9.359165] (omnirobot_control) StdoutLine: {'line': b'Installing goto_pose_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.360219] (omnirobot_control) StdoutLine: {'line': b'Installing kinematics_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.361176] (omnirobot_control) StdoutLine: {'line': b'Installing lidar_perception_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.362003] (omnirobot_control) StdoutLine: {'line': b'Installing local_planner_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.362886] (omnirobot_control) StdoutLine: {'line': b'Installing move_1m_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.363835] (omnirobot_control) StdoutLine: {'line': b'Installing navigator_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.364746] (omnirobot_control) StdoutLine: {'line': b'Installing state_machine_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.365671] (omnirobot_control) StdoutLine: {'line': b'Installing trajectory_smoother_node script to /home/robocupmsl/omni3_ws/install/omnirobot_control/lib/omnirobot_control\n'}
+[9.367393] (omnirobot_control) StdoutLine: {'line': b'\n'}
+[9.368440] (omnirobot_control) StdoutLine: {'line': b'Installed /home/robocupmsl/omni3_ws/build/omnirobot_control\n'}
+[9.368976] (omnirobot_control) StdoutLine: {'line': b'running symlink_data\n'}
+[9.370710] (omnirobot_control) StdoutLine: {'line': b'creating /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/rviz\n'}
+[9.372290] (omnirobot_control) StdoutLine: {'line': b'symbolically linking /home/robocupmsl/omni3_ws/build/omnirobot_control/rviz/navigator.rviz -> /home/robocupmsl/omni3_ws/install/omnirobot_control/share/omnirobot_control/rviz\n'}
+[9.458831] (-) TimerEvent: {}
+[9.559647] (-) TimerEvent: {}
+[9.560998] (omnirobot_control) CommandEnded: {'returncode': 0}
+[9.624763] (omnirobot_control) JobEnded: {'identifier': 'omnirobot_control', 'rc': 0}
+[9.627395] (-) EventReactorShutdown: {}
