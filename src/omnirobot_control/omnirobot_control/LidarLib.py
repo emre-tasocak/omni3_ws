@@ -103,8 +103,9 @@ class YDLidarX2:
         self._scan_is_active = True
         # Rotasyon boyunca biriken ölçüm sayacı — rotasyon bitince sıfırlanır
         rot_pnt = np.zeros(360, dtype=np.uint32)
-        prev_end_angle = -1.0
-        rot_error_cnt  = 0
+        prev_end_angle   = -1.0   # cloud step hesabı için (paket içi)
+        prev_start_angle = -1.0   # rotasyon sınırı tespiti için (monoton artar, sarınca düşer)
+        rot_error_cnt    = 0
 
         while self._is_scanning:
             # Retrieve data
@@ -131,9 +132,11 @@ class YDLidarX2:
                 start_angle = ((d[2] + 256 * d[3]) >> 1) / 64
                 end_angle   = ((d[4] + 256 * d[5]) >> 1) / 64
 
-                # Rotasyon sınırı tespiti: start_angle önceki end_angle'dan belirgin küçükse
-                # yeni bir tur başladı → birikmiş veriyi yayınla, sıfırla
-                if prev_end_angle >= 0.0 and start_angle < prev_end_angle - 30.0:
+                # Rotasyon sınırı tespiti: start_angle önceki START açısından belirgin
+                # küçükse yeni tur başladı.  prev_END kullanılamaz çünkü 360°→0°
+                # sarması paketin İÇİNDE olur (end < start) → prev_end küçük kalır,
+                # sınır asla yakalanmaz.  prev_START monoton artar, sarınca düşer.
+                if prev_start_angle >= 0.0 and start_angle < prev_start_angle - 30.0:
                     new_result = np.empty(360, dtype=np.int32)
                     for a in range(360):
                         if rot_pnt[a] == 0:
@@ -149,7 +152,8 @@ class YDLidarX2:
                     rot_pnt[:]    = 0
                     rot_error_cnt = 0
 
-                prev_end_angle = end_angle
+                prev_start_angle = start_angle
+                prev_end_angle   = end_angle
 
                 # Start data block
                 if sample_cnt == 1:

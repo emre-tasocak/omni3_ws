@@ -80,6 +80,13 @@ class LidarNode(Node):
         # Robot gövdesi kör bölgesi: range_min'den yakın okumalar → inf
         ranges_m[ranges_m < self.rmin] = np.inf
 
+        # ── LiDAR AÇI AYNALAMA DÜZELTMESİ ────────────────────────────────────
+        # YD X2 cihaz derecesi saat yönünde artıyor; biz angle_min=0,
+        # increment=+ ile CCW (sol=+) yayımlıyoruz → sol↔sağ aynalanıyordu
+        # (engel fiziksel SOL'dayken navigator SAĞ görüyor, robot engele sürüyor).
+        # published[i] = ranges[(360-i) % 360] → açı işaretini ters çevir (θ→−θ).
+        ranges_m = np.roll(ranges_m[::-1], 1)
+
         msg = LaserScan()
         msg.header.stamp    = self.get_clock().now().to_msg()
         msg.header.frame_id = self.fid

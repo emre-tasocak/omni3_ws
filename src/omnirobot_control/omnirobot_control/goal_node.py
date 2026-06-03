@@ -32,14 +32,17 @@ class GoalNode(Node):
     def __init__(self):
         super().__init__('goal_node')
 
-        self.declare_parameter('goal_x',     0.0)
-        self.declare_parameter('goal_y',     0.0)
-        self.declare_parameter('goal_theta', 0.0)   # derece cinsinden
-        self.declare_parameter('delay_s',    5.0)   # RPi4B'de nodelar ~4s başlar
+        from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+        _float_desc = ParameterDescriptor(dynamic_typing=True)
 
-        self._gx  = self.get_parameter('goal_x').value
-        self._gy  = self.get_parameter('goal_y').value
-        self._gth = math.radians(self.get_parameter('goal_theta').value)
+        self.declare_parameter('goal_x',     0.0, _float_desc)
+        self.declare_parameter('goal_y',     0.0, _float_desc)
+        self.declare_parameter('goal_theta', 0.0, _float_desc)
+        self.declare_parameter('delay_s',    5.0, _float_desc)
+
+        self._gx  = float(self.get_parameter('goal_x').value)
+        self._gy  = float(self.get_parameter('goal_y').value)
+        self._gth = math.radians(float(self.get_parameter('goal_theta').value))
         delay     = self.get_parameter('delay_s').value
 
         self._pub = self.create_publisher(PoseStamped, '/goal_pose', _LATCHED_QOS)

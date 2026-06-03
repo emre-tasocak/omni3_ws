@@ -46,8 +46,10 @@ global_planner_node:
     n_max:      6000            # RRT* max iterasyon (artırıldı: 4 engelli ortam)
     eta:        0.35            # m — max steer adımı
     p_goal:     0.15            # hedef bias olasılığı
-    d_safe:     0.15            # m — azaltıldı: dar geçitlerde yol bulabilsin
+    d_safe:     0.40            # m — robot_r(0.27)+0.13 pay: robot yola sığsın (KRİTİK)
     map_margin: 2.0             # m — arama alanı genişletme
+    retry_max:  3               # yol bulunamazsa tekrar deneme sayısı
+    retry_d_safe_min: 0.30      # m — retry'de d_safe bu kademeye kadar düşürülür
 
 # ── Trayektori yumuşatma ─────────────────────────────────────────────────────
 trajectory_smoother_node:
@@ -56,30 +58,40 @@ trajectory_smoother_node:
     T_min:       0.30           # s — min segment süresi
     theta_mode:  fixed          # fixed: omni robot döndürülmez, sadece öteleme
     theta_fixed: 0.0            # rad — sabit yönelim (x ekseni ileri)
-    d_safe:      0.35           # m
+    d_safe:      0.40           # m — RRT* ile tutarlı (robot_r+pay)
     check_dt:    0.05           # s — çarpışma örnekleme adımı
 
 # ── Navigatör (DWA — Dynamic Window Approach) ────────────────────────────────
 navigator_node:
   ros__parameters:
     dt:              0.05        # s  — kontrol döngüsü (20 Hz)
-    v_max:           0.35        # m/s — FGM engel yoksa tam hız, yakınında yavaşlar
-    lookahead:       0.70        # m  — Pure Pursuit carrot ufku (normal mod)
+    v_max:           0.35        # m/s — engel yoksa tam hız, yakınında yavaşlar
+    v_traj:          0.28        # m/s — trajectory takip nominal hızı (smoother ile eşit)
+    lookahead:       0.70        # m  — Pure Pursuit carrot ufku (fallback)
+    lookahead_min:   0.30        # m  — engel yakınında min carrot ufku
     pos_tol:         0.10        # m  — varış toleransı
     robot_radius:    0.27        # m  — fiziksel yarıçap
-    dwa_clearance:   0.42        # m  — robot_r(0.27)+0.15m margin: 0.30m yüzey boşluğu
-    d_safe:          0.55        # m  — bu mesafeye girince hız azaltılır
+    estop_margin:    0.18        # m  — ESTOP = robot_r + bu = 0.45m
+    scan_step:       2           # LiDAR nokta örnekleme adımı (RPi için 2 optimum)
+    dwa_clearance:   0.45        # m  — robot_r(0.27)+0.18 pay (daha az agresif kaçış)
+    dwa_pass_clr:    0.33        # m  — robot_r+0.06: yörünge GEÇERLİ sayılır eşiği
+                                 #      (yan engel "düz"ü geçersiz kılmasın → düz gidebilsin)
+    d_safe:          0.60        # m  — hız azaltma eşiği
+    corridor_trigger: 0.85       # m  — İLERİ koridorda engel bu mesafeden yakınsa DWA
+                                 #      (robot erken tepki versin, çarpmadan kaçsın)
     # DWA parametreleri
-    dwa_alpha:       0.40        # heading puanı ağırlığı (azaltıldı: engel kaçınma öncelikli)
-    dwa_beta:        0.50        # clearance puanı ağırlığı (artırıldı)
+    dwa_alpha:       0.45        # heading puanı ağırlığı
+    dwa_beta:        0.45        # clearance puanı ağırlığı
     dwa_gamma:       0.10        # hız puanı ağırlığı
     dwa_n_dir:       36          # yön örnekleme (her 10°)
     dwa_n_speed:     8           # hız örnekleme kademesi
-    dwa_sim_time:    1.5         # s  — simülasyon ufku (uzatıldı: 2. engeli erken görür)
+    dwa_sim_time:    2.0         # s  — simülasyon ufku
     dwa_sim_steps:   10          # simülasyon adım sayısı
     dwa_max_clear:   2.0         # m  — clearance normalize referansı
+    # Smooth hareket — ivme limiti (cmd_vel rate limiter)
+    accel_limit:     0.50        # m/s² — kademe başına max hız değişimi
     # Tıkanma & zaman aşımı
     stuck_threshold: 0.05        # m
-    stuck_window:    5.0         # s
+    stuck_window:    3.0         # s
     replan_timeout:  8.0         # s
     goal_wait:       2.0         # s
