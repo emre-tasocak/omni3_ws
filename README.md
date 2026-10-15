@@ -45,14 +45,21 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ```bash
 # ROS2 Jazzy kurulu olmalı
-sudo apt install python3-scipy python3-numpy
+sudo apt install python3-colcon-common-extensions python3-scipy python3-numpy python3-serial python3-tk
+source /opt/ros/jazzy/setup.bash
 
+# İlk kurulumda:
+git clone https://github.com/emre-tasocak/omni3_ws.git ~/omni3_ws
 cd ~/omni3_ws
 colcon build --symlink-install --packages-select omnirobot_control
 source install/setup.bash
 ```
 
 ---
+
+`build/`, `install/` ve `log/` bilgisayara özgü üretilen dosyalardır; repoda tutulmaz.
+Yukarıdaki `colcon build` komutu bunları robotun üzerinde yeniden oluşturur.
+Mevcut bir klonu güncelledikten sonra da bu derleme adımını çalıştırın.
 
 ## Çalıştırma
 
