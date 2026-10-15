@@ -88,7 +88,7 @@ class PerceptionNode(Node):
         # Parametreler
         self.declare_parameter('dbscan_eps',      0.10)   # m
         self.declare_parameter('dbscan_min_pts',  5)     # gürültü azaltmak için artırıldı
-        self.declare_parameter('max_dist',        4.0)   # m
+        self.declare_parameter('max_dist',        2.5)   # m — uzak duvarlar RRT*'yi bloke etmesin
         self.declare_parameter('self_filter_r',   0.30)  # m — robot gövdesi filtresi
         self.declare_parameter('dt',              0.05)
         self.declare_parameter('kalman_Q',        0.01)
@@ -96,7 +96,7 @@ class PerceptionNode(Node):
         self.declare_parameter('v_dynamic',       0.04)
         self.declare_parameter('max_miss',        5)
         self.declare_parameter('match_dist',      0.30)
-        self.declare_parameter('min_hits',        1)    # onay eşiği: N frame görülmeli
+        self.declare_parameter('min_hits',        2)    # onay eşiği: N frame görülmeli (hayalet ele)
         # Dinamik sınıflandırma boyut filtresi (insan bacağı = ~35–55 cm çap)
         self.declare_parameter('dyn_r_min',       0.175)  # m — min yarıçap (35 cm çap)
         self.declare_parameter('dyn_r_max',       0.275)  # m — max yarıçap (55 cm çap)

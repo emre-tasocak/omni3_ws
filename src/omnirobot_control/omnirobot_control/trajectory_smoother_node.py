@@ -52,7 +52,7 @@ class TrajectorySmoother(Node):
         super().__init__('trajectory_smoother_node')
 
         # Parametreler
-        self.declare_parameter('v_nominal',    0.28)
+        self.declare_parameter('v_nominal',    0.45)
         self.declare_parameter('T_min',        0.30)
         self.declare_parameter('theta_mode',   'tangent')
         self.declare_parameter('theta_fixed',  0.0)

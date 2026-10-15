@@ -147,6 +147,22 @@ class GlobalPlannerNode(Node):
 
         start = (pose[0], pose[1])
 
+        # ── Başlangıcı/hedefi YUTAN engelleri ele ────────────────────────────
+        # RRT* çarpışma kontrolü: nokta, engel_yarıçapı + d_safe içindeyse bloke.
+        # Robotun mevcut konumu (start) büyük bir duvar-kümesinin şişirilmiş
+        # bölgesine düşerse RRT* start'tan HİÇ dallanamaz → komple başarısız olur
+        # (robot dönüşe geçemez). Robot zaten oradaysa o engel ya artefakt ya da
+        # lokal FGM'in işi → global planlamadan çıkar. Aynısı hedef için de geçerli.
+        def _engulfs(pt, o):
+            return math.hypot(pt[0] - o[0], pt[1] - o[1]) < o[2] + self._d_safe
+        n_before = len(obs)
+        obs = [o for o in obs if not (_engulfs(start, o) or _engulfs(goal, o))]
+        if len(obs) < n_before:
+            self.get_logger().warn(
+                f'{n_before - len(obs)} engel start/goal’ı yutuyordu → planlamadan çıkarıldı '
+                f'(lokal FGM güvende tutar)'
+            )
+
         xs = [start[0], goal[0]]
         ys = [start[1], goal[1]]
         x_bounds = (min(xs) - self._margin, max(xs) + self._margin)

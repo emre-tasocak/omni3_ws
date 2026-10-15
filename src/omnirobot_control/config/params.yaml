@@ -28,7 +28,8 @@ perception_node:
   ros__parameters:
     dbscan_eps:     0.12        # m — DBSCAN yarıçapı (orijinal değer)
     dbscan_min_pts: 4           # düşürüldü: küçük engeller de algılansın
-    max_dist:       4.0         # m — bu ötesi filtrele
+    max_dist:       2.5         # m — bu ötesi filtrele (uzak duvarlar RRT*'yi bloke etmesin;
+                                #     lokal FGM ham scan kullandığı için yakın kaçış etkilenmez)
     self_filter_r:  0.30        # m — robot gövdesi filtresi (yakın insanı da algıla)
     dt:             0.05        # s
     kalman_Q:       0.01        # süreç gürültüsü
@@ -36,7 +37,8 @@ perception_node:
     v_dynamic:      0.04        # m/s — dinamik sınıf eşiği
     max_miss:       5           # frame — track silme eşiği
     match_dist:     0.30        # m — Kalman eşleştirme eşiği
-    min_hits:       1           # frame — engel ilk görüldüğünde yayınla (gecikme yok)
+    min_hits:       2           # frame — 2 kare görülünce yayınla (anlık hayalet engeli ele;
+                                #     RRT* sahte engelle başarısız olmasın). ~0.1s gecikme.
     dyn_r_min:      0.175       # m — dinamik engel min yarıçapı (35 cm çap — insan bacağı alt sınırı)
     dyn_r_max:      0.275       # m — dinamik engel max yarıçapı (55 cm çap — insan gövdesi üst sınırı)
 
@@ -54,7 +56,7 @@ global_planner_node:
 # ── Trayektori yumuşatma ─────────────────────────────────────────────────────
 trajectory_smoother_node:
   ros__parameters:
-    v_nominal:   0.28           # m/s
+    v_nominal:   0.45           # m/s — hız arttırıldı (navigator v_traj ile eşit olmalı)
     T_min:       0.30           # s — min segment süresi
     theta_mode:  fixed          # fixed: omni robot döndürülmez, sadece öteleme
     theta_fixed: 0.0            # rad — sabit yönelim (x ekseni ileri)
@@ -65,20 +67,20 @@ trajectory_smoother_node:
 navigator_node:
   ros__parameters:
     dt:              0.05        # s  — kontrol döngüsü (20 Hz)
-    v_max:           0.35        # m/s — engel yoksa tam hız, yakınında yavaşlar
-    v_traj:          0.28        # m/s — trajectory takip nominal hızı (smoother ile eşit)
+    v_max:           0.55        # m/s — engel yoksa tam hız + kaçış tavanı (arttırıldı)
+    v_traj:          0.45        # m/s — trajectory takip nominal hızı (smoother v_nominal ile eşit)
     lookahead:       0.70        # m  — Pure Pursuit carrot ufku (fallback)
     lookahead_min:   0.30        # m  — engel yakınında min carrot ufku
     pos_tol:         0.10        # m  — varış toleransı
     robot_radius:    0.27        # m  — fiziksel yarıçap
-    estop_margin:    0.18        # m  — ESTOP = robot_r + bu = 0.45m
+    estop_margin:    0.20        # m  — ESTOP = robot_r + bu = 0.47m (yüksek hızda fren payı)
     scan_step:       2           # LiDAR nokta örnekleme adımı (RPi için 2 optimum)
     dwa_clearance:   0.45        # m  — robot_r(0.27)+0.18 pay (daha az agresif kaçış)
     dwa_pass_clr:    0.33        # m  — robot_r+0.06: yörünge GEÇERLİ sayılır eşiği
                                  #      (yan engel "düz"ü geçersiz kılmasın → düz gidebilsin)
-    d_safe:          0.60        # m  — hız azaltma eşiği
-    corridor_trigger: 0.85       # m  — İLERİ koridorda engel bu mesafeden yakınsa DWA
-                                 #      (robot erken tepki versin, çarpmadan kaçsın)
+    d_safe:          0.55        # m  — hız azaltma eşiği (sadece YAKIN engelde yavaşla)
+    corridor_trigger: 0.75       # m  — İLERİ koridorda engel bu mesafeden yakınsa FGM
+                                 #      (uzaktaki engele tepki verme; hedefe düz git)
     # DWA parametreleri
     dwa_alpha:       0.45        # heading puanı ağırlığı
     dwa_beta:        0.45        # clearance puanı ağırlığı
@@ -89,9 +91,16 @@ navigator_node:
     dwa_sim_steps:   10          # simülasyon adım sayısı
     dwa_max_clear:   2.0         # m  — clearance normalize referansı
     # Smooth hareket — ivme limiti (cmd_vel rate limiter)
-    accel_limit:     0.50        # m/s² — kademe başına max hız değişimi
+    accel_limit:     1.00        # m/s² — kademe başına max hız değişimi (daha HIZLI tepki/kaçış)
     # Tıkanma & zaman aşımı
     stuck_threshold: 0.05        # m
     stuck_window:    3.0         # s
     replan_timeout:  8.0         # s
     goal_wait:       2.0         # s
+    return_home:     true        # hedefe varınca başlangıç pozisyonuna geri dön
+    goal_reach_frac: 0.88        # hedefin %88'ine varıp hedef yönü engelliyse o konumu varış say
+    # Dinamik engel kaçışı (hız-tahminli yana kayma) — statik davranışı etkilemez
+    dyn_react_dist:  1.6         # m  — bu mesafe içindeki dinamik engeli değerlendir
+    dyn_horizon:     2.5         # s  — çarpışma öngörü ufku (time-to-CPA)
+    dyn_margin:      0.30        # m  — ekstra ıskalama payı (çapraz geçene erken tepki)
+    dyn_evade_gain:  1.2         # yana kayma hızı = v_max × bu (daha hızlı dinamik kaçış)

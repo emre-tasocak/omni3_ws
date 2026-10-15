@@ -14,6 +14,8 @@ Durum makinesi:
   IDLE → PLANNING → FOLLOWING → GOAL_REACHED → IDLE
                  ↑               ↓
                  └── REPLANNING ─┘
+  return_home=true: GOAL_REACHED'te başlangıç pozisyonu yeni hedef olarak
+  yayınlanır → PLANNING (dönüş) → ... → GOAL_REACHED → IDLE (tur biter).
 """
 
 import json
@@ -58,18 +60,18 @@ class NavigatorNode(Node):
 
         # ── Parametreler ──────────────────────────────────────────────────────
         self.declare_parameter('dt',              0.05)
-        self.declare_parameter('v_max',           0.35)
-        self.declare_parameter('v_traj',          0.28)   # trajectory takip nominal hızı
+        self.declare_parameter('v_max',           0.55)
+        self.declare_parameter('v_traj',          0.45)   # trajectory takip nominal hızı
         self.declare_parameter('lookahead',       0.70)
         self.declare_parameter('lookahead_min',   0.30)
         self.declare_parameter('pos_tol',         0.10)
         self.declare_parameter('robot_radius',    0.27)
-        self.declare_parameter('estop_margin',    0.18)   # ESTOP = robot_r + bu değer
+        self.declare_parameter('estop_margin',    0.20)   # ESTOP = robot_r + bu değer
         self.declare_parameter('dwa_clearance',   0.45)   # robot_r(0.27)+0.18m margin
         self.declare_parameter('dwa_pass_clr',    0.33)   # robot_r+0.06: yörünge GEÇERLİ sayılır eşiği
-        self.declare_parameter('d_safe',          0.60)
-        self.declare_parameter('corridor_trigger', 0.85)  # ileri koridorda engel eşiği
-        self.declare_parameter('accel_limit',     0.50)   # m/s² ivme limiti (smooth)
+        self.declare_parameter('d_safe',          0.55)
+        self.declare_parameter('corridor_trigger', 0.75)  # ileri koridorda engel eşiği
+        self.declare_parameter('accel_limit',     1.00)   # m/s² ivme limiti (daha hızlı tepki)
         self.declare_parameter('scan_step',       2)      # RPi performans/çözünürlük dengesi
         # DWA
         self.declare_parameter('dwa_alpha',       0.40)
@@ -89,6 +91,13 @@ class NavigatorNode(Node):
         self.declare_parameter('stuck_window',    2.5)
         self.declare_parameter('replan_timeout',  8.0)
         self.declare_parameter('goal_wait',       2.0)
+        self.declare_parameter('return_home',     True)   # hedefe varınca başlangıca dön
+        self.declare_parameter('goal_reach_frac', 0.88)   # hedefin %88'ine varıp engelliyse varış say
+        # Dinamik engel kaçışı (hız-tahminli yana kayma)
+        self.declare_parameter('dyn_react_dist',  1.6)    # m — bu mesafe içindeki dinamik engeli değerlendir
+        self.declare_parameter('dyn_horizon',     2.5)    # s — çarpışma öngörü ufku (time-to-CPA)
+        self.declare_parameter('dyn_margin',      0.30)   # m — ekstra ıskalama payı
+        self.declare_parameter('dyn_evade_gain',  1.2)    # yana kayma hızı = v_max × bu
 
         self._dt          = self.get_parameter('dt').value
         self._v_max       = self.get_parameter('v_max').value
@@ -119,6 +128,12 @@ class NavigatorNode(Node):
         self._stuck_win   = self.get_parameter('stuck_window').value
         self._replan_to   = self.get_parameter('replan_timeout').value
         self._goal_wait   = self.get_parameter('goal_wait').value
+        self._return_home = self.get_parameter('return_home').value
+        self._goal_reach_frac = self.get_parameter('goal_reach_frac').value
+        self._dyn_react   = self.get_parameter('dyn_react_dist').value
+        self._dyn_horizon = self.get_parameter('dyn_horizon').value
+        self._dyn_margin  = self.get_parameter('dyn_margin').value
+        self._dyn_evade_g = self.get_parameter('dyn_evade_gain').value
 
         self._estop_dist  = self._robot_r + self._estop_m
 
@@ -126,11 +141,15 @@ class NavigatorNode(Node):
         self._state             = State.IDLE
         self._pose              = [0.0, 0.0, 0.0]   # [x, y, yaw]
         self._goal: Optional[Tuple] = None
+        self._start_pose: Optional[Tuple] = None   # ilk hedef geldiğinde kaydedilen başlangıç
+        self._returning         = False            # şu an başlangıca dönüş yapılıyor mu
+        self._goal_total_dist   = 0.0              # hedef set edildiğindeki başlangıç→hedef mesafesi
         self._path: List[Point] = []
         self._path_idx          = 0
         self._obstacles: List[dict] = []
         self._goal_time         = None
         self._replan_time       = None
+        self._plan_time         = None
         self._stuck_check_pose  = None
         self._stuck_check_time  = None
         self._last_replan_time  = 0.0
@@ -161,6 +180,7 @@ class NavigatorNode(Node):
         self._cmd_pub       = self.create_publisher(Twist,  '/cmd_vel',         10)
         self._replan_pub    = self.create_publisher(Empty,  '/replan',           10)
         self._lidar_obs_pub = self.create_publisher(String, '/lidar_obstacles',  10)
+        self._goal_pub      = self.create_publisher(PoseStamped, '/goal_pose', _LATCHED_QOS)
 
         self.create_subscription(Path,        '/global_path', self._path_cb,   _LATCHED_QOS)
         self.create_subscription(String,      '/obstacles',   self._obs_cb,    10)
@@ -230,12 +250,23 @@ class NavigatorNode(Node):
         gx  = msg.pose.position.x
         gy  = msg.pose.position.y
         gth = 2.0 * math.atan2(msg.pose.orientation.z, msg.pose.orientation.w)
+        # Dış (yeni) hedef → mevcut konumu başlangıç olarak kaydet. Dönüş hedefini
+        # kendimiz yayınladığımızda (_returning=True) başlangıcı KORU.
+        if not self._returning:
+            self._start_pose = (self._pose[0], self._pose[1], self._pose[2])
         self._goal     = (gx, gy, gth)
+        # %95-varış kontrolü için bu hedefe olan başlangıç mesafesi
+        self._goal_total_dist = math.hypot(self._pose[0] - gx, self._pose[1] - gy)
         self._path     = []
         self._path_idx = 0
         self._traj         = None     # eski trajectory geçersiz
         self._traj_samples = None
-        self.get_logger().info(f'Hedef: ({gx:.2f}, {gy:.2f})')
+        self.get_logger().info(
+            f'Hedef: ({gx:.2f}, {gy:.2f})'
+            + (f'  [DÖNÜŞ — başlangıç {self._start_pose[0]:.2f},{self._start_pose[1]:.2f}]'
+               if self._returning else
+               f'  [başlangıç kaydedildi: {self._start_pose[0]:.2f},{self._start_pose[1]:.2f}]')
+        )
         self._set_state(State.PLANNING)
 
     def _cancel_cb(self, _msg):
@@ -252,6 +283,8 @@ class NavigatorNode(Node):
         self._state = new
         if new == State.GOAL_REACHED:
             self._goal_time = time.time()
+        elif new == State.PLANNING:
+            self._plan_time = time.time()
         elif new == State.REPLANNING:
             self._replan_time = time.time()
             self._path = []
@@ -272,6 +305,13 @@ class NavigatorNode(Node):
         elif s == State.PLANNING:
             self._stop()
             if self._path:
+                self._set_state(State.FOLLOWING)
+            elif (self._plan_time is not None and
+                  time.time() - self._plan_time > self._replan_to and
+                  self._goal is not None):
+                # RRT* zamanında yol veremedi → FGM-direct: hedefe doğrudan yönel,
+                # lokal FGM engellerden kaçar. (Robot PLANNING'de takılıp kalmasın.)
+                self.get_logger().warn('PLANNING timeout → FGM-direct moda geçildi')
                 self._set_state(State.FOLLOWING)
 
         elif s == State.REPLANNING:
@@ -298,7 +338,42 @@ class NavigatorNode(Node):
         elif s == State.GOAL_REACHED:
             self._stop()
             if time.time() - self._goal_time >= self._goal_wait:
-                self._set_state(State.IDLE)
+                if (self._return_home and not self._returning
+                        and self._start_pose is not None):
+                    # Hedefe varıldı → başlangıç pozisyonuna dön.
+                    # global_planner için /goal_pose yayınla + iç durumu doğrudan
+                    # ayarla (kendi mesajımızı almaya bağlı kalmadan sağlam).
+                    self._returning    = True
+                    self._goal         = self._start_pose
+                    self._goal_total_dist = math.hypot(
+                        self._pose[0] - self._start_pose[0],
+                        self._pose[1] - self._start_pose[1])
+                    self._path         = []
+                    self._path_idx     = 0
+                    self._traj         = None
+                    self._traj_samples = None
+                    self._publish_goal(self._start_pose)
+                    self.get_logger().info(
+                        f'Hedefe varıldı → başlangıca dönülüyor '
+                        f'({self._start_pose[0]:.2f}, {self._start_pose[1]:.2f})'
+                    )
+                    self._set_state(State.PLANNING)
+                else:
+                    # Dönüş de tamamlandı (veya kapalı) → tur bitti
+                    self._returning = False
+                    self._set_state(State.IDLE)
+
+    def _publish_goal(self, pose: Tuple[float, float, float]):
+        """Verilen (x, y, θ) hedefini /goal_pose'a yayınla → global_planner planlar."""
+        gx, gy, gth = pose
+        msg = PoseStamped()
+        msg.header.stamp    = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'odom'
+        msg.pose.position.x = float(gx)
+        msg.pose.position.y = float(gy)
+        msg.pose.orientation.z = math.sin(gth / 2.0)
+        msg.pose.orientation.w = math.cos(gth / 2.0)
+        self._goal_pub.publish(msg)
 
     # ── Takip döngüsü ─────────────────────────────────────────────────────────
 
@@ -358,6 +433,28 @@ class NavigatorNode(Node):
             )
             scan_pts    = np.zeros((0, 2))   # stale veri yerine boş
             nearest_raw = float('inf')
+
+        # ── Hedefe %95 + hedef yönü engelli → tam konuma varılamıyor ─────────
+        #  Hedef duvara/engele yakınsa robot tam noktaya (pos_tol) ulaşamaz ve
+        #  dönüşü başlatamaz. Çözüm: hedefin %frac'ine varıldıysa VE hedef yönündeki
+        #  koridor engelliyse (yol kapalı), bu konumu varış say → dönüşü buradan
+        #  başlat. Engel yoksa normal şekilde tam hedefe devam edilir.
+        if self._goal_total_dist > 1e-3:
+            dist_goal = math.hypot(gx - px, gy - py)
+            reached_frac = dist_goal <= (1.0 - self._goal_reach_frac) * self._goal_total_dist
+            if reached_frac:
+                ang_goal = math.atan2(gy - py, gx - px) - yaw
+                corridor_to_goal = self._corridor_obstacle_dist(scan_pts, ang_goal)
+                if corridor_to_goal < dist_goal + self._robot_r:
+                    pct = self._goal_reach_frac * 100.0
+                    self.get_logger().info(
+                        f'Hedefe %{pct:.0f} yaklasildi + hedef yonu engelli '
+                        f'(engel {corridor_to_goal:.2f}m) -> tam konuma gidilemiyor, '
+                        f'bu konumdan donuluyor ({px:.2f},{py:.2f})'
+                    )
+                    self._set_state(State.GOAL_REACHED)
+                    self._stop()
+                    return
 
         # NOT: virtual_obs (hayalet engel diski) KALDIRILDI. LiDAR artık 12Hz
         # düzgün çalışıyor (range_min=0.28m ≈ robot_r), kör bölge ihmal edilebilir.
@@ -440,6 +537,16 @@ class NavigatorNode(Node):
             v_limit = min(v_limit, 0.12)   # stale → yavaş git
         if self._in_escape:
             v_limit = min(v_limit, self._v_max * 0.25)
+
+        # ── DİNAMİK ENGEL KAÇIŞI (hız-tahminli yana kayma) ───────────────────
+        #  Perception'ın dinamik engellerini (vx,vy) kullanır. Çarpışma rotasında
+        #  bir dinamik engel varsa, robotu engelin önünü kesmek yerine hız
+        #  vektörüne DİK yöne hızlıca yana kaydırır. Statik davranışa dokunmaz —
+        #  sadece dynamic=True engel çarpışma rotasındaysa devreye girer.
+        evade = self._dynamic_evasion(px, py)
+        if evade is not None:
+            self._publish_vel(evade[0], evade[1], 0.0)   # world frame
+            return
 
         # ── KONTROL KATMANI SEÇİMİ ───────────────────────────────────────────
         #  (A) Önü açık + trajectory var → SAF TRACKING (quintic feedforward
@@ -812,6 +919,61 @@ class NavigatorNode(Node):
             max(math.hypot(px - o['x'], py - o['y']) - o.get('r', 0.15), 0.0)
             for o in dyn
         )
+
+    def _dynamic_evasion(self, px: float, py: float):
+        """Dinamik engel çarpışma rotasındaysa hız-tahminli yana kayma hızı döndür.
+
+        World frame'de en yakın yaklaşma (CPA — closest point of approach):
+          p     = engel − robot              (göreli konum)
+          v_rel = engel_hız − robot_hız      (göreli hız)
+          t_cpa = −(p·v_rel) / |v_rel|²       (en yakın yaklaşma zamanı)
+          p_cpa = p + v_rel·t_cpa             (o andaki göreli konum; |p_cpa|=ıskalama)
+        |p_cpa| < (robot_r + engel_r + pay) ve 0<t_cpa<ufuk ise çarpışma rotası.
+        Kaçış: −p_cpa yönüne (v_rel'e DİK, engelin geçeceği yerden UZAK) v_max ile
+        yana kay → ıskalama mesafesini büyütür. Statik engel asla tetiklemez.
+
+        Döndürür: (vx_w, vy_w) veya None (tehdit yok → normal/statik akış sürer).
+        """
+        dyn = [o for o in self._obstacles if o.get('dynamic', False)]
+        if not dyn:
+            return None
+        rvx, rvy = self._last_cmd_vx, self._last_cmd_vy   # robotun world hızı (son komut)
+        best = None   # (t_cpa, vx_w, vy_w)
+        for o in dyn:
+            px_rel = o['x'] - px
+            py_rel = o['y'] - py
+            if math.hypot(px_rel, py_rel) > self._dyn_react:
+                continue
+            vrelx = o.get('vx', 0.0) - rvx
+            vrely = o.get('vy', 0.0) - rvy
+            vrel2 = vrelx * vrelx + vrely * vrely
+            if vrel2 < 1e-4:                  # göreli hız ~0 → çarpışma rotası yok
+                continue
+            t_cpa = -(px_rel * vrelx + py_rel * vrely) / vrel2
+            if t_cpa <= 0.0 or t_cpa > self._dyn_horizon:
+                continue                      # uzaklaşıyor / çok uzak gelecekte
+            cx = px_rel + vrelx * t_cpa
+            cy = py_rel + vrely * t_cpa
+            miss = math.hypot(cx, cy)
+            if miss >= self._robot_r + o.get('r', 0.20) + self._dyn_margin:
+                continue                      # zaten güvenli mesafeden geçecek
+            # ── Çarpışma rotası → kaçış yönü: −p_cpa (v_rel'e dik, engelden uzak)
+            if miss < 0.05:                   # tam kafa kafaya → v_rel'e dik herhangi yön
+                inv = 1.0 / math.sqrt(vrel2)
+                ex, ey = -vrely * inv, vrelx * inv
+            else:
+                ex, ey = -cx / miss, -cy / miss
+            if best is None or t_cpa < best[0]:
+                sp = self._v_max * self._dyn_evade_g
+                best = (t_cpa, ex * sp, ey * sp)
+        if best is None:
+            return None
+        self.get_logger().warn(
+            f'DİNAMİK KAÇIŞ: yana kay v=({best[1]:+.2f},{best[2]:+.2f}) '
+            f't_cpa={best[0]:.2f}s',
+            throttle_duration_sec=0.5,
+        )
+        return (best[1], best[2])
 
     def _publish_vel(self, vx: float, vy: float, wz: float):
         # ── İvme limiti (rate limiter) — smooth hareket, sarsıntı önleme ──────
